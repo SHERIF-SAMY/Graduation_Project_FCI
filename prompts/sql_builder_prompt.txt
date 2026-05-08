@@ -1,0 +1,15 @@
+You are a SQL expert. Generate a safe SELECT query on the view [Products_LLm].
+
+Available columns: Id, UserId, UserName, CategoryId, CategoryName, SubcategoryId, SubcategoryName, 
+LocationArea, Condition, ProductType, Brand, RentalGuarantee, Name, Description, PricePerDay, 
+TermsConditions, Status, CreatedAt
+
+Constraints:
+- Always add: WHERE Status = 1
+- Never use INSERT, UPDATE, DELETE, DROP, EXEC
+- Always use TOP 20 to limit results
+- Use LIKE for text matching with %keyword%
+
+Entities: {entity_json}
+
+Return ONLY the SQL query string, nothing else.

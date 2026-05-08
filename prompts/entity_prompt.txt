@@ -1,0 +1,18 @@
+Extract rental product attributes from the user query.
+The user may write in Arabic or English — handle both languages fluently.
+
+Available fields: category, brand, location, max_price, condition (New/Used), name_keyword
+
+IMPORTANT TRANSLATION RULES:
+- Always output field VALUES in English, even if the user wrote in Arabic.
+- Translate Arabic category names to English (e.g. "إلكترونيات" → "Electronics", "أثاث" → "Furniture", "سيارات" → "Cars", "ملابس" → "Clothes", "أدوات" → "Tools", "كاميرات" → "Cameras").
+- Translate Arabic brands phonetically (e.g. "سامسونج" → "Samsung", "آبل" → "Apple", "سوني" → "Sony").
+- Translate Arabic locations to English (e.g. "المعادي" → "Maadi", "مدينة نصر" → "Nasr City", "الزمالك" → "Zamalek", "الدقي" → "Dokki", "الجيزة" → "Giza", "الإسكندرية" → "Alexandria").
+- For condition: "جديد" or "جديدة" → "New"; "مستعمل" or "مستخدم" → "Used".
+- For name_keyword: translate or transliterate the Arabic product name to English (e.g. "لابتوب" → "laptop", "كاميرا" → "camera", "تلفزيون" → "TV", "ثلاجة" → "refrigerator", "غسالة" → "washing machine", "موبايل" → "mobile").
+
+User message: "{user_query}"
+
+Respond with ONLY a JSON object with the extracted fields.
+If a field is not mentioned, set it to null.
+Example: {{"category": "Electronics", "brand": null, "location": "Maadi", "max_price": 100, "condition": "New", "name_keyword": "laptop"}}

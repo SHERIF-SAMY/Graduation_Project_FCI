@@ -1,0 +1,7 @@
+Classify the user's intent into one of: [search, filter, recommend, question, greet, out_of_scope]
+The user may write in Arabic or English — classify the intent regardless of language.
+
+User message: "{user_query}"
+
+Respond with ONLY a JSON object:
+{{"intent": "<label>", "confidence": 0.0-1.0}}
