@@ -1,7 +1,20 @@
-Classify the user's intent into one of: [search, filter, recommend, question, greet, out_of_scope]
-The user may write in Arabic or English — classify the intent regardless of language.
+صنّف نية المستخدم في رسالة واحدة فقط من: [search, filter, recommend, question, greet, out_of_scope]
 
-User message: "{user_query}"
+تعريفات:
+- search: المستخدم بيدور على منتج أو بيسأل عنه (مثال: "عايز كاميرا"، "بنور على لابتوب"، "في عندكم دراجة؟"، "I need a camera"، "show me laptops")
+- filter: بيحدد فلاتر زي السعر أو المنطقة أو الحالة (مثال: "كاميرا بأقل من 200 جنيه في المعادي"، "new laptop under 300")
+- recommend: بيطلب نصيحة أو مقارنة (مثال: "إيه أحسن كاميرا عندكم؟"، "what do you recommend?")
+- question: سؤال عام عن التطبيق أو خدماته (مثال: "إزاي بشتغل التطبيق؟"، "how does renting work?")
+- greet: تحية بحتة بدون أي طلب لمنتج (مثال: "سالم عليكم"، "أهلاً"، "hello", "hi")
+- out_of_scope: موضوع خارج التأجير (مثال: "الطقس إيه النهارده؟"، "اشتري مش أجّر")
 
-Respond with ONLY a JSON object:
+مهم جداً:
+- أي رسالة فيها ذكر لمنتج (كاميرا، لابتوب، دراجة، كاميرات، إلخ) هي search مش greet.
+- "بنور على X" = search
+- "عايز X" = search
+- "في X؟" = search
+
+رسالة المستخدم: "{user_query}"
+
+رد بـ JSON فقط:
 {{"intent": "<label>", "confidence": 0.0-1.0}}

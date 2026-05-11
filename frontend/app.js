@@ -35,7 +35,74 @@ document.addEventListener('DOMContentLoaded', () => {
   checkHealth();
   loadCategories();
   document.getElementById('chat-input').focus();
+  fetchRecommendations(); // Fetch initially for Discover view
 });
+
+// ─── Tab Switching ───
+function switchTab(tabId) {
+  // Update buttons
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  
+  // Update views
+  document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+  document.getElementById(`${tabId}-view`).classList.add('active');
+  
+  if (tabId === 'chat') {
+    document.getElementById('chat-input').focus();
+  } else if (tabId === 'discover') {
+    fetchRecommendations();
+  }
+}
+
+// ─── Recommendations ───
+async function fetchRecommendations() {
+  const grid = document.getElementById('recommendations-grid');
+  const metadata = document.getElementById('rec-metadata');
+  const explanation = document.getElementById('rec-explanation');
+  
+  grid.innerHTML = '<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text3);">Loading recommendations...</div>';
+  
+  try {
+    const res = await fetch(`${API_BASE}/recommendations?session_id=${SESSION_ID}&limit=6`);
+    if (!res.ok) throw new Error('Failed to fetch recommendations');
+    const data = await res.json();
+    
+    // Update Metadata Badge
+    const isCold = data.recommendation_type === 'cold_start';
+    const confScore = Math.round(data.user_profile.profile_confidence * 100);
+    metadata.innerHTML = `
+      <span class="rec-badge ${isCold ? 'cold' : ''}">
+        ${isCold ? 'Trending & Newest' : 'Personalized'}
+      </span>
+      <span style="font-size: 11px; color: var(--text3);">Confidence: ${confScore}%</span>
+      <span style="font-size: 11px; color: var(--text3); margin-left: auto;">${data.latency_ms}ms</span>
+    `;
+    
+    // Update Explanation
+    if (data.explanation) {
+      explanation.style.display = 'block';
+      explanation.innerHTML = escapeHtml(data.explanation);
+    } else {
+      explanation.style.display = 'none';
+    }
+    
+    // Render Products
+    if (data.products && data.products.length > 0) {
+      grid.innerHTML = data.products.map((p, i) => {
+        // Find matching debug info if available
+        const debugInfo = data.debug ? data.debug.find(d => d.id === p.id) : null;
+        return productCard(p, debugInfo);
+      }).join('');
+    } else {
+      grid.innerHTML = '<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text3);">No recommendations available yet.</div>';
+    }
+    
+  } catch (err) {
+    console.error(err);
+    grid.innerHTML = '<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--red);">Failed to load recommendations. Make sure backend is running.</div>';
+  }
+}
 
 // ─── Health check ───
 async function checkHealth() {
@@ -198,7 +265,7 @@ function appendAIMessage(data) {
 }
 
 // ─── Product card HTML ───
-function productCard(p) {
+function productCard(p, debugInfo = null) {
   const icon = getProductIcon(p.category, p.name);
   const condTag = p.condition === 'New'
     ? '<span class="product-tag tag-new">✨ New</span>'
@@ -209,11 +276,24 @@ function productCard(p) {
   const imgHtml = p.image_url
     ? `<img class="product-img" src="${API_BASE}${p.image_url}" alt="${escapeHtml(p.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
        <span class="product-icon product-icon-fallback" style="display:none">${icon}</span>`
-    : `<span class="product-icon">${icon}</span>`;
+    : `<span class="product-icon product-icon-fallback">${icon}</span>`;
+
+  let debugHtml = '';
+  if (debugInfo) {
+    debugHtml = `
+      <div class="debug-overlay">
+        <div>Score: <span>${debugInfo.score.toFixed(1)}</span></div>
+        <div>Src: <span>${debugInfo.source}</span></div>
+      </div>
+    `;
+  }
 
   return `
     <div class="product-card" onclick="viewProduct(${p.id})">
-      <div class="product-img-wrap">${imgHtml}</div>
+      <div class="product-img-wrap">
+        ${imgHtml}
+        ${debugHtml}
+      </div>
       <div class="product-name" title="${p.name}">${p.name}</div>
       <div class="product-brand">${p.brand || p.category || ''}</div>
       <div class="product-price">${parseFloat(p.price_per_day).toFixed(0)} EGP <span>/ day</span></div>

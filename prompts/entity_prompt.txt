@@ -1,18 +1,24 @@
-Extract rental product attributes from the user query.
-The user may write in Arabic or English — handle both languages fluently.
+Extract ONLY explicitly mentioned rental product attributes from the user message.
 
-Available fields: category, brand, location, max_price, condition (New/Used), name_keyword
+Fields: category, brand, location, max_price, condition (New/Used), name_keyword
 
-IMPORTANT TRANSLATION RULES:
-- Always output field VALUES in English, even if the user wrote in Arabic.
-- Translate Arabic category names to English (e.g. "إلكترونيات" → "Electronics", "أثاث" → "Furniture", "سيارات" → "Cars", "ملابس" → "Clothes", "أدوات" → "Tools", "كاميرات" → "Cameras").
-- Translate Arabic brands phonetically (e.g. "سامسونج" → "Samsung", "آبل" → "Apple", "سوني" → "Sony").
-- Translate Arabic locations to English (e.g. "المعادي" → "Maadi", "مدينة نصر" → "Nasr City", "الزمالك" → "Zamalek", "الدقي" → "Dokki", "الجيزة" → "Giza", "الإسكندرية" → "Alexandria").
-- For condition: "جديد" or "جديدة" → "New"; "مستعمل" or "مستخدم" → "Used".
-- For name_keyword: translate or transliterate the Arabic product name to English (e.g. "لابتوب" → "laptop", "كاميرا" → "camera", "تلفزيون" → "TV", "ثلاجة" → "refrigerator", "غسالة" → "washing machine", "موبايل" → "mobile").
+CRITICAL RULES:
+- ONLY extract a field if the user CLEARLY and EXPLICITLY mentioned it.
+- If the user did NOT mention a location, set location to null. Do NOT guess or infer locations.
+- If the user did NOT mention a condition (new/used), set condition to null. Do NOT guess.
+- If the user did NOT mention a brand, set brand to null.
+- If the user did NOT mention a price, set max_price to null.
+- Arabic words like "على", "بنور", "عايز", "بدور", "محتاج" are NOT locations or conditions — ignore them.
+
+Translation rules (output values in English):
+- Product names/keywords: "لابتوب"/"لابتوبات" → "laptop", "كاميرا"/"كاميرات" → "camera", "دراجة" → "bike", "موبايل" → "mobile", "طابعة" → "printer", "بروجيكتور" → "projector", "سماعة" → "headphone", "عجلة" → "bike", "تلفزيون" → "TV"
+- Always use SINGULAR form for name_keyword: "laptops" → "laptop", "cameras" → "camera"
+- Locations (only if user explicitly said a place): "المعادي" → "Maadi", "مدينة نصر" → "Nasr City", "الزمالك" → "Zamalek", "الدقي" → "Dokki", "الإسكندرية" → "Alexandria", "هليوبوليس" → "Heliopolis"
+- Condition: "جديد"/"جديدة"/"new" → "New"; "مستعمل"/"مستخدم"/"used" → "Used"
+- Do NOT set category when you have a name_keyword — set category to null.
 
 User message: "{user_query}"
 
-Respond with ONLY a JSON object with the extracted fields.
-If a field is not mentioned, set it to null.
-Example: {{"category": "Electronics", "brand": null, "location": "Maadi", "max_price": 100, "condition": "New", "name_keyword": "laptop"}}
+Reply with ONLY a valid JSON object. No explanation.
+If a field is not explicitly mentioned, set it to null.
+Example: {{"category": null, "brand": null, "location": null, "max_price": null, "condition": null, "name_keyword": "laptop"}}

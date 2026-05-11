@@ -85,21 +85,51 @@
   <!-- Main Content -->
   <main class="main">
     <header class="topbar">
-      <button class="menu-btn" id="menu-btn" onclick="toggleSidebar()">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      </button>
-      <div class="topbar-title">
-        <h1>Rental AI Assistant</h1>
-        <p>Ask me anything about available products</p>
+      <div class="topbar-left">
+        <button class="menu-btn" id="menu-btn" onclick="toggleSidebar()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="topbar-title">
+          <h1>Nexon AI</h1>
+        </div>
       </div>
+      
+      <div class="topbar-tabs">
+        <button class="tab-btn active" onclick="switchTab('discover')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          Discover
+        </button>
+        <button class="tab-btn" onclick="switchTab('chat')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Assistant
+        </button>
+      </div>
+
       <div class="topbar-badges">
         <span class="model-badge">llama-3.3-70b</span>
-        <span class="model-badge secondary">Groq</span>
       </div>
     </header>
 
-    <!-- Chat Area -->
-    <div class="chat-area" id="chat-area">
+    <!-- Content Views -->
+    <div class="views-container">
+      
+      <!-- Discover View -->
+      <div class="view active" id="discover-view">
+        <div class="discover-header">
+          <h2 class="gradient-text">Recommended for You</h2>
+          <div id="rec-metadata" class="rec-metadata">
+            <span class="rec-badge">Loading...</span>
+          </div>
+          <p id="rec-explanation" class="rec-explanation">Analyzing your preferences...</p>
+        </div>
+        <div class="products-grid" id="recommendations-grid">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <!-- Chat View -->
+      <div class="view" id="chat-view">
+        <div class="chat-area" id="chat-area">
       <div class="welcome-screen" id="welcome-screen">
         <div class="welcome-icon">🏪</div>
         <h2>Welcome to Nexon AI</h2>
@@ -129,9 +159,11 @@
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           </button>
         </div>
-        <p class="input-hint">Press <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for new line</p>
+          <p class="input-hint">Press <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for new line</p>
+        </div>
       </div>
-    </div>
+
+    </div> <!-- End Views Container -->
   </main>
 
   <!-- Search Results Modal -->

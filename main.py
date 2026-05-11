@@ -1,10 +1,12 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import RedirectResponse
 from sqlalchemy import text
 import uvicorn
 import time
+import asyncio
+from typing import Optional
 
 from utils.arabic_utils import translate_arabic_to_english
 
@@ -16,6 +18,15 @@ from sql.executor import execute_query
 from ranking.ranker import rank_products
 from formatter.response_formatter import format_search_response, format_product
 from sql.db import get_engine
+
+from recommendation.models import RecommendationRequest, RecommendationResponse
+from recommendation.recommendation_engine import get_recommendations
+from recommendation.interaction_logger import log_interaction
+
+def _is_arabic(text: str) -> bool:
+    if not text:
+        return False
+    return any('\u0600' <= c <= '\u06FF' for c in text)
 
 app = FastAPI(title="AI Rental Marketplace Assistant", version="1.0.0")
 
@@ -36,6 +47,11 @@ def root():
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
+    lang = "ar" if _is_arabic(request.query) else "en"
+    asyncio.create_task(log_interaction(
+        "search", session_id=request.session_id,
+        search_query=request.query, preferred_language=lang
+    ))
     try:
         result = await run_chat_pipeline(request.query, session_id=request.session_id or "default")
         return result
@@ -45,6 +61,10 @@ async def chat_endpoint(request: ChatRequest):
 
 @app.post("/search", response_model=SearchResponse)
 async def search_endpoint(request: SearchRequest):
+    asyncio.create_task(log_interaction(
+        "search", category=request.category, brand=request.brand,
+        location_area=request.location, price_range=request.max_price
+    ))
     start_time = time.time()
     
     # For /search, treat explicitly provided fields as 'entities'
@@ -130,7 +150,8 @@ def live_search(q: str = ""):
     return {"products": products, "total": len(products)}
 
 @app.get("/products/{product_id}", response_model=Product)
-def get_product(product_id: int):
+async def get_product(product_id: int):
+    asyncio.create_task(log_interaction("view_product", product_id=product_id))
     try:
         query = "SELECT * FROM Products_LLm WHERE Id = :id"
         rows = execute_query(query, {"id": product_id})
@@ -141,6 +162,19 @@ def get_product(product_id: int):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/recommendations", response_model=RecommendationResponse)
+async def recommendations_endpoint(
+    user_id:    Optional[str] = Query(default=None, max_length=100),
+    session_id: Optional[str] = Query(default=None, max_length=100),
+    query:      Optional[str] = Query(default=None, max_length=500),
+    limit:      int           = Query(default=5, ge=1, le=20),
+):
+    if not user_id and not session_id:
+        raise HTTPException(422, "Provide at least one of: user_id or session_id")
+    req = RecommendationRequest(user_id=user_id, session_id=session_id,
+                                 query=query, limit=limit)
+    return await get_recommendations(req)
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
