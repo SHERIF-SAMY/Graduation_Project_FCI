@@ -27,17 +27,20 @@ def format_product(db_row: dict) -> Product:
         image_url=db_row.get('ImageUrl')
     )
 
-def format_chat_response(answer: str, intent: str, products_raw: list, latency_ms: int, cached: bool) -> dict:
+def format_chat_response(answer: str, intent: str, products_raw: list, latency_ms: int, cached: bool, booking_action: dict = None) -> dict:
     products = [format_product(p) for p in products_raw]
-    response = ChatResponse(
-        answer=answer,
-        intent=intent,
-        products=products,
-        total_found=len(products_raw),
-        latency_ms=latency_ms,
-        cached=cached
-    )
-    return response.model_dump()
+    response_data = {
+        "answer": answer,
+        "intent": intent,
+        "products": [p.model_dump() for p in products],
+        "total_found": len(products_raw),
+        "latency_ms": latency_ms,
+        "cached": cached
+    }
+    if booking_action:
+        response_data["booking_action"] = booking_action
+    
+    return response_data
 
 def format_search_response(products_raw: list, latency_ms: int, cached: bool) -> dict:
     products = [format_product(p) for p in products_raw]

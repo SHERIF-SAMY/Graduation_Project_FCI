@@ -6,6 +6,7 @@ from sqlalchemy import text
 import uvicorn
 import time
 import asyncio
+import httpx
 from typing import Optional
 
 from utils.arabic_utils import translate_arabic_to_english
@@ -45,6 +46,35 @@ app.mount("/app", StaticFiles(directory="frontend", html=True), name="frontend")
 def root():
     return RedirectResponse(url="/app")
 
+@app.post("/auth/login")
+async def auth_login_proxy(body: dict):
+    """
+    Proxy to the .NET Auth API to avoid CORS issues from the browser.
+    Forwards { email, password } to the .NET backend and returns the token response.
+    """
+    dotnet_url = "http://rentalplatform.runasp.net/api/Account/login"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.post(
+                dotnet_url,
+                json=body,
+                headers={"Content-Type": "application/json"}
+            )
+        try:
+            data = response.json()
+        except Exception:
+            data = {"message": response.text}
+
+        if response.status_code not in (200, 201):
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=data.get("message", "Login failed")
+            )
+        return data
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=502, detail=f"Cannot reach auth server: {str(e)}")
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     lang = "ar" if _is_arabic(request.query) else "en"
@@ -53,7 +83,12 @@ async def chat_endpoint(request: ChatRequest):
         search_query=request.query, preferred_language=lang
     ))
     try:
-        result = await run_chat_pipeline(request.query, session_id=request.session_id or "default")
+        result = await run_chat_pipeline(
+            request.query, 
+            session_id=request.session_id or "default",
+            user_id=request.user_id,
+            auth_token=request.auth_token
+        )
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

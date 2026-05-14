@@ -30,12 +30,18 @@ function getProductIcon(category, name) {
 let isLoading = false;
 let currentCategory = null;
 
+// ─── Auth State ───
+let AUTH_TOKEN = localStorage.getItem('nexon_auth_token') || null;
+let USER_ID = localStorage.getItem('nexon_user_id') || null;
+let USER_NAME = localStorage.getItem('nexon_user_name') || null;
+
 // ─── Init ───
 document.addEventListener('DOMContentLoaded', () => {
   checkHealth();
   loadCategories();
   document.getElementById('chat-input').focus();
   fetchRecommendations(); // Fetch initially for Discover view
+  updateAuthUI();
 });
 
 // ─── Tab Switching ───
@@ -201,7 +207,12 @@ async function sendMessage() {
     const res = await fetch(`${API_BASE}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, session_id: SESSION_ID })   // ← send session_id
+      body: JSON.stringify({ 
+        query, 
+        session_id: SESSION_ID,
+        user_id: USER_ID,
+        auth_token: AUTH_TOKEN
+      })
     });
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -519,7 +530,97 @@ function toggleSidebar() {
 }
 
 function closeModal(e) {
-  if (e.target.id === 'search-modal') {
+  if (e.target.id === 'search-modal' || e.target.id === 'login-modal') {
     e.target.classList.remove('active');
   }
+}
+
+// ─── Auth Helpers ───
+function updateAuthUI() {
+  const container = document.getElementById('auth-container');
+  if (!container) return;
+  if (AUTH_TOKEN) {
+    container.innerHTML = `
+      <span class="model-badge" style="background: var(--surface2); color: var(--text); border: 1px solid var(--border);">
+        👤 ${escapeHtml(USER_NAME || 'User')}
+      </span>
+      <button onclick="logout()" style="background:none; border:none; color:var(--red); cursor:pointer; font-size:12px; margin-left:8px; font-weight:600;">
+        Logout
+      </button>
+    `;
+  } else {
+    container.innerHTML = `
+      <button class="tab-btn" onclick="document.getElementById('login-modal').classList.add('active')" style="padding: 6px 14px; background: linear-gradient(135deg, var(--surface), var(--surface2)); border: 1px solid var(--border);">
+        Login / Signup
+      </button>
+    `;
+  }
+}
+
+async function submitLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorEl = document.getElementById('login-error');
+  const btn = document.getElementById('login-submit-btn');
+
+  if (!email || !password) {
+    errorEl.textContent = 'Please enter both email and password.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  errorEl.style.display = 'none';
+  btn.disabled = true;
+  btn.innerHTML = 'Logging in...';
+
+  try {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+
+    if (!res.ok) throw new Error(data.message || `Login failed with status ${res.status}`);
+
+    // The endpoint returns { token: { token, userId, fullName, ... } }
+    if (data && data.token) {
+      AUTH_TOKEN = data.token.token;
+      USER_ID = data.token.userId || data.token.nameidentifier || '';
+      USER_NAME = data.token.fullName || email.split('@')[0];
+    } else {
+      throw new Error('Unexpected response format from server.');
+    }
+
+    localStorage.setItem('nexon_auth_token', AUTH_TOKEN);
+    localStorage.setItem('nexon_user_id', USER_ID);
+    localStorage.setItem('nexon_user_name', USER_NAME);
+
+    document.getElementById('login-modal').classList.remove('active');
+    updateAuthUI();
+    document.getElementById('login-email').value = '';
+    document.getElementById('login-password').value = '';
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Login';
+  }
+}
+
+function logout() {
+  AUTH_TOKEN = null;
+  USER_ID = null;
+  USER_NAME = null;
+  localStorage.removeItem('nexon_auth_token');
+  localStorage.removeItem('nexon_user_id');
+  localStorage.removeItem('nexon_user_name');
+  updateAuthUI();
 }

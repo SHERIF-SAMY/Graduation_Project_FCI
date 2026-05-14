@@ -1,0 +1,23 @@
+استخرج من رسالة المستخدم المعلومات المتعلقة بطلب الإيجار.
+
+اليوم هو: {today}
+
+الحقول المطلوبة:
+- start_date: تاريخ البداية (ISO: YYYY-MM-DD) أو null
+- end_date: تاريخ النهاية (ISO: YYYY-MM-DD) أو null
+- delivery_method: "Delivery" أو "Pickup" أو null (توصيل = Delivery, استلام من المكان = Pickup)
+- city: المدينة بالإنجليزي أو null
+- street: الشارع أو null
+- governorate: المحافظة بالإنجليزي أو null
+- confirmed: true لو المستخدم بيأكد، false لو بيرفض، null لو مش واضح
+- selected_product: اسم أو معرف المنتج لو المستخدم بيشير لمنتج محدد أو null
+
+تعليمات هامة:
+- تعامل مع التواريخ النسبية: "بكره"=اليوم+1، "الأسبوع الجاي"=اليوم+7، إلخ.
+- إذا لم يذكر المستخدم تاريخ الانتهاء، اجعله نفس تاريخ البداية مبدئيا.
+- يجب أن يكون JSON صالحا فقط.
+
+رسالة المستخدم: "{user_query}"
+
+رد بـ JSON فقط بدون أي نص إضافي:
+{{"start_date": null, "end_date": null, "delivery_method": null, "city": null, "street": null, "governorate": null, "confirmed": null, "selected_product": null}}

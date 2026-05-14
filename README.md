@@ -9,7 +9,7 @@
 ![SQL Server](https://img.shields.io/badge/SQL%20Server-Azure-CC2927?logo=microsoftsqlserver&logoColor=white)
 ![Multilingual](https://img.shields.io/badge/Multilingual-Arabic%20%2F%20English-green?logo=googletranslate&logoColor=white)
 
-**A multi-agent AI assistant for a rental marketplace platform. Understands natural language queries in Arabic and English, builds safe SQL on the fly, ranks results intelligently, and responds in the user's own language — all in under 2 seconds.**
+**A multi-agent AI assistant for a rental marketplace platform. Understands Arabic and English, books rentals end-to-end via the .NET API, cancels orders, and responds like a real Egyptian marketplace salesperson — all under 2 seconds.**
 
 </div>
 
@@ -18,11 +18,12 @@
 ## 📋 Table of Contents
 
 - [Overview](#-overview)
-- [What's New](#-whats-new)
-- [Multilingual Support](#-multilingual-support)
+- [Agentic Booking System](#-agentic-booking-system)
+- [Order Cancellation](#-order-cancellation)
+- [Authentication & Login](#-authentication--login)
 - [System Architecture](#-system-architecture)
 - [Agent Pipeline](#-agent-pipeline)
-- [Intent-Based Product Display](#-intent-based-product-display)
+- [Recommendation Engine](#-recommendation-engine)
 - [Technology Stack](#-technology-stack)
 - [Project Structure](#-project-structure)
 - [Prerequisites](#-prerequisites)
@@ -39,14 +40,15 @@
 
 ## 🎯 Overview
 
-RentHub AI is a **Python FastAPI AI microservice** that powers a conversational assistant for a rental marketplace. Users can ask natural language questions in **Arabic or English** like:
+RentHub AI is a **Python FastAPI AI microservice** that powers a fully conversational rental booking assistant. Users can:
 
-> *"I need a laptop in Zamalek under 220 EGP per day"*
-> *"عايز لابتوب في الزمالك بأقل من ٢٢٠ جنيه في اليوم"*
-> *"كنت بنور على كاميرات"*
-> *"Show me new Sony cameras in Nasr City"*
+- Search for products in **Arabic or English**
+- **Book a rental** end-to-end through natural conversation
+- **Cancel an existing order** with confirmation step
+- Get **personalized recommendations** based on their history
 
-The system extracts intent and entities from the query (in any language), builds a parameterized SQL query, retrieves results from the database, ranks them, and generates a helpful natural language response **in the same language the user wrote in** — while maintaining full **conversation memory** across turns.
+> *"عايز أجّر لابتوب Dell بكره لمدة 3 أيام، توصيل على مدينة نصر"*
+> → The bot collects all details, shows a summary with price, confirms with the user, and registers the order in the .NET backend — all in one conversation.
 
 **Key constraints:**
 - 🔒 The LLM only ever reads from the `Products_LLm` **VIEW** — raw tables are never exposed
@@ -54,127 +56,143 @@ The system extracts intent and entities from the query (in any language), builds
 - ⚡ **No embeddings, no vector databases** — purely SQL-first retrieval
 - 🌍 **Fully bilingual** — Arabic and English supported end-to-end
 - 🎭 **Egyptian salesperson personality** — responds naturally like a real marketplace assistant
+- 📦 **Write operations go through the .NET API** — Python never writes directly to the DB
 
 ---
 
-## 🆕 What's New
+## 🤖 Agentic Booking System
 
-### Bug Fixes & Improvements
+The chatbot is now a full **Agentic Booking System** capable of completing an entire rental transaction through natural conversation.
 
-#### 1. 🔧 Fixed Broken `Products_LLm` VIEW
-The `Products_LLm` database VIEW was referencing a non-existent column `PricePerDay`. It has been recreated correctly to:
-- Use `FinalPricePerDay AS PricePerDay` (the actual column name)
-- JOIN `Categories` table to expose `CategoryName`
-- JOIN `Subcategories` table to expose `SubcategoryName`
-- Include `ImageUrl` from `ProductImages`
-
-Run `fix_view.py` to recreate the VIEW if needed.
-
-#### 2. 🔍 Smarter Search — Plural Keyword Normalization
-The SQL builder now normalizes plural English keywords before searching:
-- `"laptops"` → searches for `"laptop"` (finds "Dell Laptop")
-- `"cameras"` → searches for `"camera"` (finds "Canon DSLR Camera")
-- `"bikes"` → searches for `"bike"` (finds "Mountain Bike")
-
-This prevents common "no results found" errors caused by plural vs. singular mismatch.
-
-#### 3. 🎯 Category-Free Search with `name_keyword`
-When a user mentions a product name (e.g., "laptop"), the SQL builder:
-- **Skips** the `CategoryName` filter (the LLM often guesses the wrong category)
-- Searches across `Name`, `CategoryName`, AND `ProductType` using `OR`
-- Result: "laptop" finds "Dell Laptop" even though its category is "Computers", not "Electronics"
-
-#### 4. 🧠 Intent-Based Product Display
-Products are now shown **only when the user is actually asking for a product**. For greetings, general questions, or out-of-scope messages, the DB query is skipped entirely:
-
-| Intent | DB Query | Product Cards |
-|--------|----------|---------------|
-| `search` | ✅ Yes | ✅ Shown |
-| `filter` | ✅ Yes | ✅ Shown |
-| `recommend` | ✅ Yes | ✅ Shown |
-| `greet` | ❌ Skipped | ❌ Hidden |
-| `question` | ❌ Skipped | ❌ Hidden |
-| `out_of_scope` | ❌ Skipped | ❌ Hidden |
-
-#### 5. 🌐 Strict Language Mirroring
-The AI now strictly replies in the **exact same language** the user used:
-- English message → English reply only
-- Arabic message → Egyptian Arabic reply only
-- Never mixes languages
-
-#### 6. 🤖 Egyptian Salesperson Personality
-The system prompt was rewritten to make the AI behave like a friendly, natural Egyptian marketplace salesperson:
-- Speaks Egyptian Arabic naturally (not formal/robotic Arabic)
-- Greets warmly without mentioning products unprompted
-- Asks follow-up questions **only** when: intent is `recommend` AND the query is vague
-- Never asks more than one clarifying question
-
-#### 7. 🚫 No Technical Term Leakage
-The AI now never mentions "database", "قاعدة بيانات", "SQL", "system", or any technical term in its responses.
-
-#### 8. 🗃️ Fixed Entity Extraction Hallucinations
-The entity extractor was incorrectly inferring `location` and `condition` from unrelated Arabic words:
-- `"كنت بنور على لابتوبات"` was extracting `location="Maadi"` and `condition="New"` from the words "على" and "بنور"
-- Now the prompt explicitly states: **only extract fields the user explicitly mentioned**
-
-#### 9. 🔎 New `/search/live` Endpoint
-A new real-time search endpoint for the sidebar search bar:
-- Searches as the user types (debounced 200ms)
-- Searches across Name, Brand, Category, ProductType, and Location
-- Returns top 8 matching products instantly
-
-#### 10. 🖥️ Updated Frontend Sidebar
-The Quick Search sidebar section was redesigned:
-- **New "Search" section** at the top — single live search bar with animated dropdown
-- **Restored "Quick Search" section** below — original multi-field filter form (keyword, location, max price, condition)
-
----
-
-## 🌍 Multilingual Support
-
-The system supports **Arabic and English** natively across every layer:
-
-### How Arabic Queries Are Handled
+### Booking Flow
 
 ```
-User: "كنت بنور على لابتوبات في الزمالك"
-                    │
-     ┌──────────────▼──────────────────┐
-     │   Entity Extractor (LLM)        │
-     │   Understands Arabic query      │
-     │   Translates values to English  │
-     │   ONLY extracts explicit fields │
-     └──────────────┬──────────────────┘
-                    │
-     {name_keyword: "laptop", location: "Zamalek"}
-     (category=null — skipped intentionally)
-                    │
-     ┌──────────────▼──────────────────┐
-     │   SQL Builder                   │
-     │   "laptop" → strips 's' if any  │
-     │   WHERE (Name OR CategoryName   │
-     │          OR ProductType)        │
-     │         LIKE '%laptop%'         │
-     │   AND LocationArea LIKE '%Zamalek%'│
-     └──────────────┬──────────────────┘
-                    │
-     ┌──────────────▼──────────────────┐
-     │   Response Generator (LLM)      │
-     │   Detects user wrote in Arabic  │
-     │   → Replies fully in Egyptian   │
-     │     Arabic, like a salesperson  │
-     └─────────────────────────────────┘
+User: "حجزلي الكاميرا دي"
+  ↓
+Bot: "من إمتى لإمتى بالظبط؟"
+  ↓
+User: "من 20 مايو لـ 23 مايو"
+  ↓
+Bot: "تحب توصيل ولا استلام من المالك؟"
+  ↓
+User: "توصيل"
+  ↓
+Bot: "العنوان بالتفصيل؟ (المدينة، الشارع، المحافظة)"
+  ↓
+User: "شارع التسعين، مدينة نصر، القاهرة"
+  ↓
+Bot: "ممتاز! هأكد الطلب ده:
+      📦 المنتج: Canon DSLR Camera
+      📅 من: 2026-05-20 إلى 2026-05-23
+      🚚 توصيل: شارع التسعين، مدينة نصر، القاهرة
+      💰 السعر: 150 EGP/يوم × 4 يوم = 600 EGP
+
+      تأكيد؟ (أيوه / لأ)"
+  ↓
+User: "أيوه"
+  ↓
+Bot: "✅ تم تسجيل طلبك بنجاح! رقم الطلب: 7"
 ```
 
-### Supported Arabic Mappings (Entity Extractor)
+### State Machine
 
-| Category | Arabic Examples |
+| State | المعنى |
 |---|---|
-| **Products** | لابتوب/لابتوبات، كاميرا/كاميرات، تلفزيون، دراجة، موبايل، بروجيكتور، سماعة، طابعة |
-| **Brands** | سامسونج، آبل، سوني، شاومي، هواوي، كانون، نيكون، دل |
-| **Locations** | المعادي، مدينة نصر، الزمالك، الدقي، الجيزة، الإسكندرية، هليوبوليس |
-| **Categories** | إلكترونيات، أثاث، أدوات، كاميرات، رياضة، ألعاب، صوتيات، كمبيوتر |
-| **Condition** | جديد/جديدة → New &nbsp;·&nbsp; مستعمل/مستخدم → Used |
+| `IDLE` | لا يوجد booking جارية |
+| `AWAITING_PRODUCT` | محتاجين تحديد المنتج المطلوب |
+| `AWAITING_DATES` | محتاجين تاريخ البداية والنهاية |
+| `AWAITING_DELIVERY_METHOD` | توصيل ولا استلام؟ |
+| `AWAITING_ADDRESS` | لو توصيل: محتاجين العنوان |
+| `AWAITING_CONFIRMATION` | عرضنا ملخص وننتظر تأكيد |
+| `AWAITING_CANCEL_CONFIRM` | ننتظر تأكيد الإلغاء |
+| `CONFIRMED` | تم تسجيل الطلب ✅ |
+| `CANCELLED` | ألغى المستخدم |
+
+### Booking Intents
+
+| Intent | مثال |
+|---|---|
+| `book_initiate` | "اجّرهولي"، "حجّزه ليا"، "rent this for me" |
+| `book_continue` | رد على أي سؤال أثناء الـ booking flow |
+| `book_confirm` | "أيوه"، "yes"، "تمام"، "confirm" |
+| `book_cancel` | "لأ"، "no"، "cancel"، "مش عايز" |
+
+### Product Availability Check
+
+Before starting any booking flow, the system automatically checks if the product has an active order (Pending, Accepted, or In Progress). If it does, the bot responds:
+
+> *"عذراً، المنتج ده محجوز دلوقتي ومش متاح للإيجار. اقدر اساعدك تلاقي منتج تاني."*
+
+### Price Calculation
+
+The confirmation summary includes an **inclusive day count** (matching the .NET API calculation):
+- May 15 → May 17 = **3 days** (15 + 16 + 17)
+- Total = price_per_day × num_days
+
+---
+
+## 🚫 Order Cancellation
+
+Users can cancel an existing order through natural conversation.
+
+### Cancellation Flow
+
+```
+User: "عايز أكنسل الاوردر"
+  ↓
+Bot: (يجيب الطلبات من الـ DB)
+     "طلباتك الحالية:
+      - رقم 4: Dell Laptop
+      - رقم 6: Sony Headphones
+      ادخل رقم الطلب اللي عايز تلغيه:"
+  ↓
+User: "4"
+  ↓
+Bot: "⚠️ متأكد إنك عايز تلغي الطلب رقم 4؟ قول (أيوه / لأ)"
+  ↓
+User: "أيوه"
+  ↓
+Bot: "✅ تم إلغاء الطلب رقم 4 بنجاح!"
+```
+
+The system calls `PUT /api/RentalOrder/{id}/cancel` on the .NET API with the user's JWT token. The order status in the database is updated to **6 (Cancelled)**.
+
+---
+
+## 🔐 Authentication & Login
+
+### Login Modal (Frontend)
+
+The frontend has a **Login Modal** built into the chat interface. Users can log in without leaving the page:
+
+1. Click **"Login / Signup"** in the top-right header
+2. Enter email and password
+3. The frontend calls `POST /auth/login` (our Python proxy)
+4. The JWT token is stored in `localStorage`
+5. The header updates to show the user's name with a Logout button
+
+### Auth Proxy (No CORS Issues)
+
+To avoid browser CORS restrictions, the frontend never calls the .NET API directly. Instead, it calls our Python backend which proxies the request:
+
+```
+Browser → POST /auth/login → Python FastAPI → POST /api/Account/login → .NET API → token
+```
+
+### Token Forwarding
+
+Every chat message automatically includes the JWT token:
+
+```json
+{
+  "query": "عايز أجّر لابتوب",
+  "session_id": "sess_abc123",
+  "user_id": "83e358a2-...",
+  "auth_token": "eyJhbGci..."
+}
+```
+
+The Python backend passes this token to the .NET API when creating or cancelling orders.
 
 ---
 
@@ -188,47 +206,46 @@ User: "كنت بنور على لابتوبات في الزمالك"
                         │ HTTP
 ┌───────────────────────▼─────────────────────────┐
 │         PYTHON FASTAPI AI SERVICE               │
-│  POST /chat   POST /search   GET /health        │
-│  GET /categories   GET /products/{id}           │
-│  GET /search/live  (live search bar)            │
+│  POST /chat        POST /search                 │
+│  POST /auth/login  (proxy → .NET API)           │
+│  GET  /health      GET  /categories             │
+│  GET  /search/live GET  /products/{id}          │
 │  Pydantic validation · CORS · Static Frontend   │
 └───────────────────────┬─────────────────────────┘
                         │
-┌───────────────────────▼─────────────────────────┐
-│          AI AGENT ORCHESTRATION (LangChain)     │
-│  ┌──────────────┐  ┌──────────────────────┐     │
-│  │ IntentAgent  │  │  EntityExtractorAgent │     │  ← RunnableParallel
-│  │ llama-3.1-8b │  │  llama-3.1-8b-instant│     │  ← Bilingual (AR/EN)
-│  └──────────────┘  └──────────────────────┘     │
-│              ↓               ↓                  │
-│    [If intent = search/filter/recommend only]   │
-│         ┌────────────────────────┐              │
-│         │     SQL Builder        │ ← Pure Python │
-│         │  Plural normalization  │              │
-│         │  Category-free search  │              │
-│         └───────────┬────────────┘              │
-└─────────────────────┼───────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────┐
-│            SQL RETRIEVAL LAYER                  │
-│    SQL Server → Products_LLm (VIEW only)        │
-│    SQLAlchemy · pyodbc · pool_size=5            │
-└─────────────────────┬───────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────┐
-│              RANKING LAYER                      │
-│  Python scoring: keyword × 4 + category × 3    │
-│  + brand × 3 + price_fit × 2 + condition × 2   │
-│  → Returns Top 5                                │
-└─────────────────────┬───────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────┐
-│     GROQ RESPONSE GENERATOR (LangChain)         │
-│  llama-3.3-70b-versatile                        │
-│  System Prompt + Chat History + SQL Results     │
-│  → Egyptian Arabic or English reply             │
-│  → Never mentions technical terms               │
-└─────────────────────────────────────────────────┘
+         ┌──────────────┴──────────────┐
+         │                             │
+┌────────▼─────────────┐   ┌──────────▼──────────────┐
+│  AI AGENT PIPELINE   │   │  .NET REST API           │
+│  (Search & Booking)  │   │  rentalplatform.runasp.net│
+│                      │   │                          │
+│  IntentAgent         │   │  POST /api/RentalOrder   │
+│  EntityExtractor     │   │  PUT  /api/RentalOrder/  │
+│  BookingAgent        │──▶│       {id}/cancel        │
+│  BookingEntityExtr.  │   │  POST /api/Account/login │
+│  NET_API_Proxy       │   └──────────────────────────┘
+└────────┬─────────────┘
+         │
+┌────────▼─────────────────────────────────────────┐
+│            SQL RETRIEVAL LAYER (Read Only)        │
+│    SQL Server → Products_LLm VIEW                │
+│    RentalOrders (availability check)             │
+│    SQLAlchemy · pyodbc · pool_size=5             │
+└────────┬─────────────────────────────────────────┘
+         │
+┌────────▼─────────────────────────────────────────┐
+│              RANKING LAYER                        │
+│  Python scoring: keyword × 4 + category × 3      │
+│  + brand × 3 + price_fit × 2 + condition × 2     │
+│  → Returns Top 5                                  │
+└────────┬─────────────────────────────────────────┘
+         │
+┌────────▼─────────────────────────────────────────┐
+│     GROQ RESPONSE GENERATOR (LangChain)           │
+│  llama-3.3-70b-versatile                          │
+│  System Prompt + Chat History + SQL Results       │
+│  → Egyptian Arabic or English reply               │
+└──────────────────────────────────────────────────┘
 ```
 
 ---
@@ -244,46 +261,38 @@ User Query (Arabic or English)
    ▼  (RunnableParallel)              ▼
 Intent Agent                   Entity Extractor
 llama-3.1-8b-instant           llama-3.1-8b-instant
-→ {intent, confidence}         → {category=null, brand,    ← Only explicit fields
-   (search/filter/recommend       location, max_price,     ← Translates AR→EN
-    question/greet/               condition, name_keyword} ← Singular form only
-    out_of_scope)
+→ {intent, booking_state}      → {dates, address, confirmation...}
    │                               │
    └──────────────┬────────────────┘
                   │
-         Is intent in {search, filter, recommend}?
-                  │
-         YES ─────┤──────── NO (greet/question/out_of_scope)
-                  │                     │
-                  ▼                     ▼
-         SQL Builder (Python)    ranked_products = []
-         → name_keyword plural fix    (skip DB entirely)
-         → category skipped if kw
-         → Parameterized SQL
-                  │
-                  ▼
-         SQL Executor (SQLAlchemy)
-         → Raw rows from Products_LLm VIEW
-                  │
-                  ▼
-         Ranker (Python scoring)
-         → Top 5 ranked products
-                  │
-                  └─────────────────────┘
-                                │
-                                ▼
-                  Response Generator
-                  llama-3.3-70b-versatile
-                  + MessagesPlaceholder (last 5 turns)
-                  + Intent-aware prompt
-                  → Reply in user's exact language
-                  → Egyptian Arabic salesperson style
-                  → No technical terms
-                                │
-                                ▼
-                  Response Formatter (Pydantic)
-                  → {answer, products[], intent, latency_ms, cached}
+         ┌────────┴──────────┐
+         │                   │
+  Booking Intent?      Search Intent?
+  (or active state)         │
+         │                   ▼
+         ▼          SQL Builder → DB → Ranker
+  BookingAgent        → Response Generator
+  (State Machine)
+  ├─ check availability
+  ├─ collect dates / address
+  ├─ confirm with price summary
+  └─ call .NET API (create/cancel order)
+         │
+         ▼
+  Response Formatter (Pydantic)
+  → {answer, products[], intent, latency_ms, cached, booking_action}
 ```
+
+### Cache Behavior
+
+The in-memory cache is **bypassed** for booking/cancellation flows to prevent stale state being replayed:
+- ✅ Cache used: pure search/recommend queries
+- ❌ Cache skipped: any session with active booking state
+- ❌ Cache not written: any response containing `booking_action`
+
+### Escape Hatch
+
+If a session gets stuck in a booking state (e.g., `AWAITING_PRODUCT`), sending a non-booking message like a greeting or search query automatically **resets the booking context** back to `IDLE`.
 
 ---
 
@@ -294,7 +303,7 @@ The `recommendation/` module provides a **personalized product recommendation sy
 ### How It Works
 
 ```
-User visits /recommend?user_id=X&session_id=Y
+User visits /recommendations?session_id=Y
               │
               ▼
    PreferenceBuilder — reads last 50 rows from UserInteractions table
@@ -315,69 +324,13 @@ User visits /recommend?user_id=X&session_id=Y
               │
               ▼
    PersonalizedRanker — scores each candidate:
-     • keyword_match   → +4  pts  (from user's top keywords)
+     • keyword_match   → +4  pts
      • category_match  → +5  pts
      • brand_match     → +5  pts
      • location_match  → +3  pts
-     • budget_match    → +3  pts  (soft: 1 - |price-budget|/budget)
-     • popularity      → +2  pts  (from ProductStats)
-   Hybrid score = (personalization × profile_confidence)
-               + (query_relevance × (1 - profile_confidence))
-              │
-              ▼
-   Diversity Penalty Pass (Greedy):
-     - same brand again   → -3 pts
-     - same category again → -2 pts
-     - same price tier    → -1 pt
-              │
-              ▼
-   Dedup → Top-N → LLM Explanation (recommendation_explainer)
-   → RecommendationResponse {products, explanation, user_profile, latency_ms}
+     • budget_match    → +3  pts
+     • popularity      → +2  pts
 ```
-
-### Module Files
-
-| File | Responsibility |
-|---|---|
-| `recommendation_engine.py` | Main async entry point — orchestrates the full pipeline |
-| `preference_builder.py` | Queries `UserInteractions` table, applies time-decay, builds `UserProfile` |
-| `personalized_ranker.py` | Hybrid scoring (personalization + query relevance) + diversity penalty |
-| `interaction_logger.py` | Fire-and-forget async logger — writes to `UserInteractions` table |
-| `stats_updater.py` | Updates `ProductStats` (views, clicks, favorites, rent requests) |
-| `models.py` | Pydantic schemas: `UserProfile`, `RecommendationRequest`, `RecommendationResponse` |
-
-### DB Tables Used
-
-| Table | Purpose |
-|---|---|
-| `UserInteractions` | Stores every user action (search, view, click, favorite, rent) |
-| `ProductStats` | Aggregated product engagement counts for popularity scoring |
-| `Products_LLm` | View used for candidate retrieval |
-
-### Key Design Decisions
-
-- **Cold Start** — users with < 3 interactions get trending/newest products instead of personalized ones
-- **Time Decay** — older interactions have exponentially less influence (half-life = 30 days)
-- **Candidate Ladder** — expands search progressively until enough candidates are found, avoiding empty results
-- **Diversity Penalty** — greedy pass prevents recommending 5 cameras in a row
-- **Hybrid Weighting** — blends personalization score and query relevance based on `profile_confidence`
-- **Fire-and-forget Logging** — interaction logging never blocks the main response
-
----
-
-## 🎯 Intent-Based Product Display
-
-Products are **only shown when the user is asking for a product**. This prevents unwanted product cards appearing on greetings or general questions.
-
-### Intents that trigger DB search:
-- **`search`** — e.g., "عايز كاميرا", "show me laptops"
-- **`filter`** — e.g., "كاميرا بأقل من 200 جنيه في المعادي"
-- **`recommend`** — e.g., "إيه أحسن لابتوب عندكم؟"
-
-### Intents that skip DB search:
-- **`greet`** — e.g., "سالم عليكم", "hi", "أهلاً"
-- **`question`** — e.g., "إزاي بشتغل التطبيق؟", "how does renting work?"
-- **`out_of_scope`** — anything unrelated to rental products
 
 ---
 
@@ -387,14 +340,16 @@ Products are **only shown when the user is asking for a product**. This prevents
 |---|---|---|
 | **API Framework** | FastAPI 0.115 | REST endpoints, Pydantic validation, CORS |
 | **AI Agents** | LangChain + LangChain-Groq | Agent chains, prompt templates, memory |
-| **LLM (Fast)** | `llama-3.1-8b-instant` via Groq | Intent & Entity extraction — bilingual |
-| **LLM (Quality)** | `llama-3.3-70b-versatile` via Groq | Final response generation in user's language |
+| **LLM (Fast)** | `llama-3.1-8b-instant` via Groq | Intent & Entity extraction + Booking entities |
+| **LLM (Quality)** | `llama-3.3-70b-versatile` via Groq | Final response generation |
 | **Parallel Execution** | LangChain `RunnableParallel` | Intent + Entity in parallel |
 | **Conversation Memory** | LangChain `MessagesPlaceholder` | Multi-turn chat history (last 5 turns) |
-| **Database** | SQL Server (Azure) | Product data storage |
+| **Booking State** | In-memory `BookingContext` dataclass | Per-session booking state machine |
+| **HTTP Client** | `httpx` (async) | Calls to .NET REST API (create/cancel orders) |
+| **Database** | SQL Server (Azure) | Product data + orders storage |
 | **DB View** | `Products_LLm` VIEW | Safe read-only layer exposed to LLM |
 | **ORM** | SQLAlchemy 2.0 + pyodbc | Type-safe DB access, connection pooling |
-| **Caching** | In-memory TTL dict (5 min) | Repeated query acceleration |
+| **Caching** | In-memory TTL dict (5 min) | Repeated search query acceleration |
 | **Ranking** | Custom Python scorer | Keyword + price + condition weighting |
 | **Frontend** | Vanilla HTML/CSS/JS | No framework, no build step |
 | **Server** | Uvicorn (ASGI) | Async server for FastAPI |
@@ -406,180 +361,120 @@ Products are **only shown when the user is asking for a product**. This prevents
 ```
 Grad_project_FCI/
 │
-├── main.py                      # FastAPI entry point — all endpoints
-├── requirements.txt             # Python dependencies
+├── main.py                      # FastAPI entry point — all endpoints incl. /auth/login proxy
+├── requirements.txt             # Python dependencies (includes httpx)
 ├── .env                         # Environment variables (NOT in git)
+├── check_orders.py              # Utility script — displays all rental orders from DB
 │
 ├── agents/
-│   ├── intent_agent.py          # Intent classification (llama-3.1-8b) — 6 intents
-│   ├── entity_extractor.py      # Entity extraction — translates AR→EN, singular only
-│   ├── sql_builder.py           # Parameterized SQL builder — plural fix, category skip
-│   ├── response_generator.py   # Final response — Egyptian Arabic or English (llama-3.3-70b)
-│   └── recommendation_explainer.py  # LLM-generated explanation for recommendations
+│   ├── intent_agent.py              # Intent classification — booking-state aware
+│   ├── entity_extractor.py          # Search entity extraction (translates AR→EN)
+│   ├── booking_entity_extractor.py  # Booking entity extraction (dates, address, confirmation)
+│   ├── rental_booking_agent.py      # Core booking state machine + cancellation flow
+│   ├── net_api_proxy.py             # HTTP proxy → .NET API (create & cancel orders)
+│   ├── sql_builder.py               # Parameterized SQL builder
+│   └── response_generator.py        # Final response — Egyptian Arabic or English
 │
 ├── pipeline/
-│   └── orchestrator.py          # Intent-gated pipeline — skips DB for greet/question
+│   └── orchestrator.py          # Smart routing: search / booking / cancel + cache bypass
 │
-├── recommendation/              # 🌟 Personalized Recommendation Engine (see section below)
+├── recommendation/              # 🌟 Personalized Recommendation Engine
 │   ├── __init__.py
-│   ├── models.py                # Pydantic models: UserProfile, RecommendationRequest/Response
-│   ├── recommendation_engine.py # Main engine: candidate retrieval ladder + ranking + caching
-│   ├── personalized_ranker.py   # Hybrid scorer: personalization + query relevance + diversity
-│   ├── preference_builder.py    # Builds UserProfile from UserInteractions table
-│   ├── interaction_logger.py    # Fire-and-forget interaction logging to DB
-│   └── stats_updater.py         # Updates ProductStats (views, clicks, favorites, rent requests)
+│   ├── models.py                # Pydantic models
+│   ├── recommendation_engine.py # Main engine
+│   ├── personalized_ranker.py   # Hybrid scorer
+│   ├── preference_builder.py    # UserProfile builder
+│   ├── interaction_logger.py    # Fire-and-forget interaction logging
+│   └── stats_updater.py         # Updates ProductStats
 │
 ├── memory/
-│   └── session_store.py         # Per-session conversation history (last 5 turns)
+│   └── session_store.py         # Conversation history + BookingContext per session
 │
 ├── sql/
 │   ├── db.py                    # SQLAlchemy engine + connection pool
 │   └── executor.py              # Read-only query executor with injection guard
 │
 ├── ranking/
-│   └── ranker.py                # Weighted product scoring → Top 5 (for chat search)
+│   └── ranker.py                # Weighted product scoring → Top 5
 │
 ├── formatter/
 │   └── response_formatter.py    # Pydantic output schema enforcer
 │
 ├── cache/
-│   └── query_cache.py           # In-memory TTL cache (5 minutes, MD5-keyed)
+│   └── query_cache.py           # In-memory TTL cache (5 min, MD5-keyed)
 │
 ├── models/
-│   ├── request_models.py        # Pydantic input schemas (ChatRequest, SearchRequest)
-│   └── response_models.py       # Pydantic output schemas (ChatResponse, Product...)
+│   ├── request_models.py        # ChatRequest (query, session_id, user_id, auth_token)
+│   └── response_models.py       # ChatResponse + BookingAction
 │
 ├── prompts/
-│   ├── system_prompt.txt        # Egyptian salesperson personality — strict language rules
-│   ├── intent_prompt.txt        # Intent classification — 6 classes, Arabic/English examples
-│   ├── entity_prompt.txt        # Entity extraction — explicit fields only, no guessing
-│   └── final_response_prompt.txt# Intent-aware response — language mirroring, no tech terms
+│   ├── system_prompt.txt            # Egyptian salesperson personality
+│   ├── intent_prompt.txt            # Intent classification — 10 intents incl. booking
+│   ├── entity_prompt.txt            # Search entity extraction prompt
+│   ├── booking_entity_prompt.txt    # Booking-specific entity extraction prompt
+│   └── final_response_prompt.txt    # Intent-aware response generation
 │
 └── frontend/
-    ├── index.html               # Single-page chat application
-    ├── style.css                # Dark theme + live search dropdown + animations
-    └── app.js                   # API integration, live search, chat logic
+    ├── index.html               # Single-page app with Login Modal
+    ├── style.css                # Dark theme + animations
+    └── app.js                   # Auth logic, booking flow, chat, live search
 ```
 
 ---
 
 ## ✅ Prerequisites
 
-Before running, make sure you have:
-
 | Requirement | Version | Notes |
 |---|---|---|
 | Python | ≥ 3.11 | Recommended: Anaconda 3.12 |
 | ODBC Driver | 17 or 18 | [Download](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) |
 | Groq API Key | — | Free at [console.groq.com](https://console.groq.com) |
-| SQL Server | Azure / Local | Connection string from backend developer |
+| SQL Server | Azure | Connection string from backend developer |
+| .NET Backend | Running | `http://rentalplatform.runasp.net` |
 
 ---
 
 ## ⚙️ Installation & Setup
 
-### 1. Clone / Navigate to Project
-
-```bash
-cd "C:\Users\Asus\Desktop\Grad_project_FCI"
-```
-
-### 2. Install Python Dependencies
+### 1. Install Python Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 3. Configure Environment Variables
+> `requirements.txt` includes `httpx` for the .NET API proxy calls.
+
+### 2. Configure Environment Variables
 
 Create a `.env` file in the project root:
 
 ```env
-# Groq API Key — get from https://console.groq.com
+# Groq API Key
 GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-# SQL Server connection (from your backend developer)
+# SQL Server connection
 DB_SERVER=your-server.database.windows.net
 DB_PORT=1433
 DB_USER=your_username
 DB_PASS=your_password
 DB_NAME=your_database_name
 DB_DRIVER=ODBC Driver 17 for SQL Server
+
+# .NET API Integration
+DOTNET_API_BASE=http://rentalplatform.runasp.net
+DOTNET_API_TIMEOUT=10
 ```
 
-### 4. Verify & Fix Database VIEW
-
-Run the diagnostic tool to check if `Products_LLm` VIEW exists and is working:
-
-```bash
-python diagnose_db.py
-```
-
-If the VIEW is broken (references old column names), recreate it:
-
-```bash
-python fix_view.py
-```
-
-The correct VIEW definition:
-
-```sql
-CREATE VIEW Products_LLm AS
-SELECT
-    p.Id,
-    p.Name,
-    p.Description,
-    p.Brand,
-    p.ProductType,
-    p.LocationArea,
-    p.Condition,
-    p.FinalPricePerDay          AS PricePerDay,
-    p.FinalPricePerDay,
-    p.BasePricePerDay,
-    p.Status,
-    p.AverageRating,
-    p.TotalReviews,
-    p.TotalRentalCount,
-    p.RentalGuarantee,
-    p.TermsConditions,
-    p.CreatedAt,
-    p.CategoryId,
-    c.Name                      AS CategoryName,
-    p.SubcategoryId,
-    sc.Name                     AS SubcategoryName
-FROM Products p
-LEFT JOIN Categories c  ON p.CategoryId    = c.Id
-LEFT JOIN Subcategories sc ON p.SubcategoryId = sc.Id;
-```
-
----
-
-## 🚀 Running the Application
-
-### Start the Server
+### 3. Start the Server
 
 ```bash
 python -m uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-| Flag | Meaning |
-|---|---|
-| `--reload` | Auto-restart on code changes (dev only) |
-| `--host 127.0.0.1` | Local only. Use `0.0.0.0` to expose on network |
-| `--port 8000` | Port number |
-
-### Open in Browser
+### 4. Open in Browser
 
 ```
 http://127.0.0.1:8000
-```
-
-> Redirects automatically to the **RentHub AI chat interface** at `/app`.
-
-### API Documentation (Swagger)
-
-```
-http://127.0.0.1:8000/docs
 ```
 
 ---
@@ -588,59 +483,66 @@ http://127.0.0.1:8000/docs
 
 | Method | Endpoint | Description | Body / Params |
 |---|---|---|---|
-| `POST` | `/chat` | Full AI pipeline — chat with memory (Arabic/English) | `{query, session_id?}` |
+| `POST` | `/chat` | Full AI pipeline — search + booking + cancel | `{query, session_id?, user_id?, auth_token?}` |
+| `POST` | `/auth/login` | **Proxy** → .NET login — returns JWT token | `{email, password}` |
 | `POST` | `/search` | Direct filtered product search | `{category?, brand?, location?, max_price?, condition?, name_keyword?}` |
-| `GET` | `/search/live?q=` | Real-time search as user types (live search bar) | `?q=laptop` or `?q=كاميرا` |
+| `GET` | `/search/live?q=` | Real-time search as user types | `?q=laptop` |
+| `GET` | `/recommendations` | Personalized product recommendations | `?session_id=...` |
 | `GET` | `/health` | DB connection + API health check | — |
 | `GET` | `/categories` | All active categories from DB | — |
 | `GET` | `/products/{id}` | Single product detail by ID | — |
 
-### Example: Arabic Chat Request
+### Example: Book via Chat
 
 ```bash
 curl -X POST http://127.0.0.1:8000/chat \
   -H "Content-Type: application/json" \
-  -d '{"query": "كنت بنور على لابتوبات", "session_id": "user_123"}'
+  -d '{
+    "query": "عايز أجّر اللابتوب ده",
+    "session_id": "user_123",
+    "user_id": "83e358a2-997c-...",
+    "auth_token": "eyJhbGci..."
+  }'
 ```
 
-### Example: English Chat Request
+### Example: Login (Auth Proxy)
 
 ```bash
-curl -X POST http://127.0.0.1:8000/chat \
+curl -X POST http://127.0.0.1:8000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"query": "show me cameras under 200 EGP", "session_id": "user_123"}'
+  -d '{"email": "user@example.com", "password": "MyPassword123"}'
 ```
 
-### Example: Chat Response
-
+Response:
 ```json
 {
-  "answer": "عندنا كاميرا Canon DSLR في مدينة نصر بـ 150 جنيه في اليوم، حالتها جديدة وفيها ضمان إيجار. في كمان Nikon Camera في حلوان بـ 140 جنيه. أيهم يناسبك أكتر؟",
-  "intent": "search",
-  "products": [
-    {
-      "id": 9,
-      "name": "Canon DSLR Camera",
-      "category": "Cameras",
-      "brand": "Canon",
-      "condition": "New",
-      "price_per_day": 150.0,
-      "location": "Nasr City",
-      "rental_guarantee": true,
-      "status": "Available"
-    }
-  ],
-  "total_found": 2,
-  "latency_ms": 1340,
-  "cached": false
+  "token": {
+    "token": "eyJhbGci...",
+    "userId": "83e358a2-...",
+    "email": "user@example.com",
+    "fullName": "fouad",
+    "role": "User"
+  }
 }
 ```
 
-### Example: Live Search
+### Chat Response Schema
 
-```bash
-curl "http://127.0.0.1:8000/search/live?q=camera"
-# Returns top 8 matching products instantly
+```json
+{
+  "answer": "تمام! محتاج تأجره من إمتى لإمتى بالظبط؟",
+  "intent": "book_initiate",
+  "products": [],
+  "total_found": 0,
+  "latency_ms": 890,
+  "cached": false,
+  "booking_action": {
+    "state": "AWAITING_DATES",
+    "order_id": null,
+    "requires_input": "dates",
+    "summary": null
+  }
+}
 ```
 
 ---
@@ -650,41 +552,58 @@ curl "http://127.0.0.1:8000/search/live?q=camera"
 | Feature | Description |
 |---|---|
 | 💬 **Chat Interface** | Real-time conversation in Arabic or English with typing indicator |
-| 🃏 **Product Cards** | Only shown when user asks for a product — not on greetings |
+| 🔐 **Login Modal** | Login without leaving the page — JWT token stored in localStorage |
+| 👤 **User Header** | Shows logged-in user's name + Logout button after authentication |
+| 🃏 **Product Cards** | Only shown when user asks for a product |
 | 🟢 **Health Indicator** | Live DB + API status in sidebar |
 | 📂 **Category Browser** | Click any category to start a filtered chat |
-| 🔎 **Live Search Bar** | New section — single search bar with animated dropdown, shows results as you type |
-| 🔍 **Quick Search** | Multi-field filter form — keyword, location, max price, condition + Search button |
-| 🔗 **Product Detail Modal** | Click any card or live search result for full product details |
-| 💡 **Suggestion Chips** | Ready-to-use example queries on welcome screen |
-| ⚡ **Cache Indicator** | Shows when a response is served from cache |
+| 🔎 **Live Search Bar** | Animated dropdown, shows results as you type |
+| 🔍 **Quick Search** | Multi-field filter form (keyword, location, price, condition) |
+| 🔗 **Product Detail Modal** | Click any card for full product details |
+| ⚡ **Cache Indicator** | Shows `⚡ cached` when response served from cache |
 | 📱 **Responsive** | Works on mobile with collapsible sidebar |
 
 ---
 
 ## 🧠 Chat Memory
 
-The system maintains **per-session conversation history** using LangChain's `MessagesPlaceholder`.
+The system maintains **per-session state** for both conversation history and booking context.
 
-### How It Works
+### Conversation History
+- Each browser tab gets a unique `session_id` (stored in `sessionStorage`)
+- The server keeps the last **5 conversation turns** per session
+- Injected into the LLM prompt as context
 
-1. Each browser tab gets a unique `session_id` (stored in `sessionStorage`)
-2. Every `/chat` request sends the `session_id`
-3. The server retrieves the last **5 conversation turns** for that session
-4. These turns are injected into the LLM prompt before the current question
-5. The new turn is saved to memory after the response
+### Booking Context (`BookingContext`)
+- Stored in RAM per `session_id`
+- Persists across multiple messages until the booking is completed or cancelled
+- Fields: `state`, `product_id`, `product_name`, `price_per_day`, `start_date`, `end_date`, `delivery_method`, `city`, `street`, `governorate`, `rental_order_id`, `pending_cancel_order_id`
 
-### Result
+> ⚠️ All memory is **in-process** (RAM only). It resets on server restart. For production, use Redis.
 
+---
+
+## 🔧 Utility Scripts
+
+| Script | Purpose |
+|---|---|
+| `check_orders.py` | Display all rental orders from the DB with human-readable status names |
+
+```bash
+python check_orders.py
 ```
-User: "اعرض لي اللابتوبات"
-AI:   "عندنا Dell Laptop في الزمالك بـ 220 جنيه في اليوم..."
 
-User: "عندكم ديل؟"      ← AI remembers we're talking about laptops
-AI:   "أيوه! Dell Laptop في الزمالك بـ 220 جنيه في اليوم، جديد ومضمون..."
-```
+**Status values:**
 
-> ⚠️ Memory is **in-process** (RAM only). It resets on server restart. For production, replace with Redis.
+| Code | Meaning |
+|---|---|
+| 0 | Pending |
+| 1 | Accepted |
+| 2 | Rejected |
+| 3 | Completed |
+| 4 | In Progress |
+| 5 | Returned |
+| 6 | CANCELLED |
 
 ---
 
@@ -699,17 +618,21 @@ AI:   "أيوه! Dell Laptop في الزمالك بـ 220 جنيه في اليو
 | `DB_PASS` | Database password | `****` |
 | `DB_NAME` | Database name | `db46830` |
 | `DB_DRIVER` | ODBC Driver name | `ODBC Driver 17 for SQL Server` |
+| `DOTNET_API_BASE` | .NET API base URL | `http://rentalplatform.runasp.net` |
+| `DOTNET_API_TIMEOUT` | HTTP timeout (seconds) | `10` |
 
 ---
 
 ## 🔒 Security Notes
 
-- ✅ SQL is **never generated by the LLM** — only the Python `sql_builder.py` builds queries
+- ✅ SQL is **never generated by the LLM** — only `sql_builder.py` builds queries
 - ✅ All queries use **SQLAlchemy parameterized execution** — injection-proof
 - ✅ The LLM only reads from `Products_LLm` VIEW — no access to users, passwords, or financial data
 - ✅ A keyword blocklist (`insert`, `update`, `delete`, `drop`, `exec`) guards the executor layer
-- ✅ The AI never reveals internal technical details (no "database", "SQL", "system" in responses)
-- ⚠️ Keep `.env` out of version control — it's listed in `.gitignore`
+- ✅ The AI never reveals internal technical details in responses
+- ✅ Auth proxy prevents CORS — browser never calls .NET API directly
+- ✅ JWT token is stored in `localStorage` and sent only to our own Python backend
+- ⚠️ Keep `.env` out of version control — listed in `.gitignore`
 
 ---
 
@@ -717,19 +640,21 @@ AI:   "أيوه! Dell Laptop في الزمالك بـ 220 جنيه في اليو
 
 | Query Type | Target Latency |
 |---|---|
-| Cached (same query repeated) | < 50ms |
-| Live search (sidebar bar) | < 300ms |
+| Cached search (repeated) | < 50ms |
+| Live search (sidebar) | < 300ms |
 | Simple product search | < 1.5s |
-| Complex filtered query | < 2.5s |
+| Booking step (state update) | < 1s |
+| Booking confirmation (.NET API call) | < 2.5s |
+| Order cancellation (.NET API call) | < 2s |
 | Greeting / general question | < 1s (DB skipped) |
 
 **Optimizations applied:**
 - `RunnableParallel` — Intent + Entity extracted simultaneously
 - `pool_size=5` — SQLAlchemy connection pool pre-warmed
-- In-memory MD5-keyed TTL cache (5 min)
-- Only Top 5 results sent to Groq (not all 20)
+- In-memory MD5-keyed TTL cache (5 min) — **bypassed** for booking/cancel flows
+- Only Top 5 results sent to Groq (not all DB rows)
 - DB query entirely skipped for non-search intents (greet/question)
-- Plural normalization avoids redundant "no results" queries
+- Booking responses never cached (stateful per session)
 
 ---
 
@@ -737,6 +662,6 @@ AI:   "أيوه! Dell Laptop في الزمالك بـ 220 جنيه في اليو
 
 Built with ❤️ for the Grad Project — FCI
 
-**FastAPI · LangChain · Groq · SQL Server · Arabic/English**
+**FastAPI · LangChain · Groq · SQL Server · .NET REST API · Arabic/English**
 
 </div>
