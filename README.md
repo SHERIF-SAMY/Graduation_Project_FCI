@@ -117,6 +117,14 @@ Bot: "✅ تم تسجيل طلبك بنجاح! رقم الطلب: 7"
 | `book_confirm` | "أيوه"، "yes"، "تمام"، "confirm" |
 | `book_cancel` | "لأ"، "no"، "cancel"، "مش عايز" |
 
+### General & Platform Intents
+
+| Intent | مثال |
+|---|---|
+| `platform_question` | "إزاي أسحب فلوسي؟"، "هل أقدر أعرض منتجاتي للتأجير؟" |
+| `view_orders` | "عايز أشوف طلباتي"، "إيه الأوردرات اللي حجزتها؟" |
+| `question` | "تقدر تساعدني إزاي؟"، "إيه دورك؟" |
+
 ### Product Availability Check
 
 Before starting any booking flow, the system automatically checks if the product has an active order (Pending, Accepted, or In Progress). If it does, the bot responds:
@@ -364,13 +372,13 @@ Grad_project_FCI/
 ├── main.py                      # FastAPI entry point — all endpoints incl. /auth/login proxy
 ├── requirements.txt             # Python dependencies (includes httpx)
 ├── .env                         # Environment variables (NOT in git)
-├── check_orders.py              # Utility script — displays all rental orders from DB
 │
 ├── agents/
 │   ├── intent_agent.py              # Intent classification — booking-state aware
 │   ├── entity_extractor.py          # Search entity extraction (translates AR→EN)
 │   ├── booking_entity_extractor.py  # Booking entity extraction (dates, address, confirmation)
 │   ├── rental_booking_agent.py      # Core booking state machine + cancellation flow
+│   ├── platform_knowledge.py        # FAQ handler for platform rules & policies
 │   ├── net_api_proxy.py             # HTTP proxy → .NET API (create & cancel orders)
 │   ├── sql_builder.py               # Parameterized SQL builder
 │   └── response_generator.py        # Final response — Egyptian Arabic or English
@@ -430,7 +438,7 @@ Grad_project_FCI/
 | ODBC Driver | 17 or 18 | [Download](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server) |
 | Groq API Key | — | Free at [console.groq.com](https://console.groq.com) |
 | SQL Server | Azure | Connection string from backend developer |
-| .NET Backend | Running | `http://rentalplatform.runasp.net` |
+| .NET Backend | Running | `https://rentalplatform.runasp.net` |
 
 ---
 
@@ -580,30 +588,6 @@ The system maintains **per-session state** for both conversation history and boo
 - Fields: `state`, `product_id`, `product_name`, `price_per_day`, `start_date`, `end_date`, `delivery_method`, `city`, `street`, `governorate`, `rental_order_id`, `pending_cancel_order_id`
 
 > ⚠️ All memory is **in-process** (RAM only). It resets on server restart. For production, use Redis.
-
----
-
-## 🔧 Utility Scripts
-
-| Script | Purpose |
-|---|---|
-| `check_orders.py` | Display all rental orders from the DB with human-readable status names |
-
-```bash
-python check_orders.py
-```
-
-**Status values:**
-
-| Code | Meaning |
-|---|---|
-| 0 | Pending |
-| 1 | Accepted |
-| 2 | Rejected |
-| 3 | Completed |
-| 4 | In Progress |
-| 5 | Returned |
-| 6 | CANCELLED |
 
 ---
 

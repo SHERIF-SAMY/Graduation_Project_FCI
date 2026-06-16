@@ -51,15 +51,19 @@ def build_sql(entities: dict) -> tuple[str, dict]:
         if kw.endswith("s") and len(kw) > 3:
             kw = kw[:-1]   # "laptops" → "laptop", "cameras" → "camera"
 
-        # Search across Name, CategoryName, and ProductType using OR
-        query += (
-            " AND ("
-            "Name LIKE :kw"
-            " OR CategoryName LIKE :kw"
-            " OR ProductType  LIKE :kw"
-            ")"
-        )
-        params["kw"] = f"%{kw}%"
+        # Blacklist of generic words that shouldn't be used as a name filter
+        generic_words = {"product", "thing", "item", "anything", "منتج", "منتجات", "حاجة", "اشياء", "أشياء", "اي حاجة", "أي حاجة"}
+        
+        if kw not in generic_words:
+            # Search across Name, CategoryName, and ProductType using OR
+            query += (
+                " AND ("
+                "Name LIKE :kw"
+                " OR CategoryName LIKE :kw"
+                " OR ProductType  LIKE :kw"
+                ")"
+            )
+            params["kw"] = f"%{kw}%"
 
     query += " ORDER BY FinalPricePerDay ASC"
     return query, params

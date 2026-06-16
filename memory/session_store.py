@@ -23,13 +23,35 @@ class BookingContext:
     rental_order_id: int | None = None  # set after successful booking
     pending_cancel_order_id: int | None = None  # order id awaiting cancellation confirmation
 
-MAX_TURNS = 5  # Keep last 5 turns to limit token usage
+MAX_TURNS = 10  # Keep last 10 turns — increased from 5 to preserve more conversation context
 
 # { session_id: [(HumanMessage, AIMessage), ...] }
 _histories: dict[str, list] = defaultdict(list)
 
+# { session_id: [{"user": str, "response": dict}, ...] }
+# Stores the full UI-renderable history (user text + full ChatResponse dict)
+_ui_histories: dict[str, list] = defaultdict(list)
+
 # { session_id: BookingContext }
 _bookings: dict[str, BookingContext] = defaultdict(BookingContext)
+
+# { session_id: list[dict] }
+_last_products: dict[str, list] = defaultdict(list)
+
+
+def save_last_products(session_id: str, products: list) -> None:
+    """Saves the last search results for a session (raw DB rows)."""
+    _last_products[session_id] = list(products)
+
+
+def get_last_products(session_id: str) -> list:
+    """Returns the last search results shown to the user."""
+    return list(_last_products[session_id])
+
+
+def clear_last_products(session_id: str) -> None:
+    """Clears stored products (called after booking is confirmed/cancelled)."""
+    _last_products[session_id] = []
 
 
 def get_history(session_id: str) -> list:
@@ -42,8 +64,11 @@ def get_history(session_id: str) -> list:
     return messages
 
 
-def add_turn(session_id: str, user_query: str, ai_response: str) -> None:
-    """Appends a new turn to the session history, capped at MAX_TURNS."""
+def add_turn(session_id: str, user_query: str, ai_response: str, response_dict: dict = None) -> None:
+    """Appends a new turn to the session history, capped at MAX_TURNS.
+
+    Also stores the full response_dict for UI history restoration if provided.
+    """
     _histories[session_id].append((
         HumanMessage(content=user_query),
         AIMessage(content=ai_response),
@@ -52,11 +77,31 @@ def add_turn(session_id: str, user_query: str, ai_response: str) -> None:
     if len(_histories[session_id]) > MAX_TURNS:
         _histories[session_id] = _histories[session_id][-MAX_TURNS:]
 
+    # Store UI-renderable history
+    if response_dict is not None:
+        _ui_histories[session_id].append({
+            "user": user_query,
+            "response": response_dict
+        })
+        # Mirror the same cap
+        if len(_ui_histories[session_id]) > MAX_TURNS:
+            _ui_histories[session_id] = _ui_histories[session_id][-MAX_TURNS:]
+
+
+def get_ui_history(session_id: str) -> list:
+    """Returns the full UI chat history for a session.
+
+    Each item is {"user": str, "response": ChatResponse dict}.
+    """
+    return list(_ui_histories[session_id])
+
 
 def clear_session(session_id: str) -> None:
     """Clears the history and booking context for a session."""
     _histories[session_id] = []
+    _ui_histories[session_id] = []
     _bookings[session_id] = BookingContext()
+    _last_products[session_id] = []
 
 
 def get_booking_context(session_id: str) -> BookingContext:

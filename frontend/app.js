@@ -9,10 +9,10 @@ async function apiFetch(url, options = {}) {
   return fetch(url, { ...options, headers });
 }
 
-// ─── Generate unique session ID per browser session ───
-const SESSION_ID = sessionStorage.getItem('nexon_session_id') || (() => {
+// ─── Generate unique session ID per browser (localStorage so it persists across tabs/restarts) ───
+const SESSION_ID = localStorage.getItem('nexon_session_id') || (() => {
   const id = 'sess_' + Math.random().toString(36).slice(2, 11) + Date.now().toString(36);
-  sessionStorage.setItem('nexon_session_id', id);
+  localStorage.setItem('nexon_session_id', id);
   return id;
 })();
 
@@ -41,8 +41,40 @@ let currentCategory = null;
 
 // ─── Auth State ───
 let AUTH_TOKEN = localStorage.getItem('nexon_auth_token') || null;
-let USER_ID = localStorage.getItem('nexon_user_id') || null;
-let USER_NAME = localStorage.getItem('nexon_user_name') || null;
+let USER_ID    = localStorage.getItem('nexon_user_id')    || null;
+let USER_NAME  = localStorage.getItem('nexon_user_name')  || null;
+
+// Validate stored USER_ID: if it's empty string or obviously not a GUID, clear it
+// This handles the case where a user logged in before the userId-extraction fix.
+if (AUTH_TOKEN && (!USER_ID || USER_ID.trim() === '')) {
+  console.warn('[Nexon] Stored USER_ID is invalid — trying to extract from saved token...');
+  try {
+    const payload = JSON.parse(atob(AUTH_TOKEN.split('.')[1]));
+    USER_ID =
+      payload.sub ||
+      payload.nameid ||
+      payload.nameidentifier ||
+      payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ||
+      null;
+    if (USER_ID) {
+      localStorage.setItem('nexon_user_id', USER_ID);
+      console.log('[Nexon] Recovered USER_ID from token:', USER_ID);
+    } else {
+      // Cannot recover — force re-login
+      console.warn('[Nexon] Cannot recover USER_ID. Clearing session to force re-login.');
+      AUTH_TOKEN = null;
+      USER_ID    = null;
+      USER_NAME  = null;
+      localStorage.removeItem('nexon_auth_token');
+      localStorage.removeItem('nexon_user_id');
+      localStorage.removeItem('nexon_user_name');
+    }
+  } catch {
+    // Token is malformed — clear everything
+    AUTH_TOKEN = null; USER_ID = null; USER_NAME = null;
+    ['nexon_auth_token', 'nexon_user_id', 'nexon_user_name'].forEach(k => localStorage.removeItem(k));
+  }
+}
 
 // ─── Init ───
 document.addEventListener('DOMContentLoaded', () => {
@@ -51,7 +83,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('chat-input').focus();
   fetchRecommendations(); // Fetch initially for Discover view
   updateAuthUI();
+  loadChatHistory();     // Restore previous chat session
 });
+
 
 // ─── Tab Switching ───
 function switchTab(tabId) {
@@ -535,11 +569,40 @@ function escapeHtml(text) {
   return (text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
 }
 
+// ─── Load & restore previous chat history from backend ───
+async function loadChatHistory() {
+  try {
+    const res = await apiFetch(`${API_BASE}/chat/history/${SESSION_ID}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.history || data.history.length === 0) return;
+
+    // Hide welcome screen since we have history
+    document.getElementById('welcome-screen').style.display = 'none';
+
+    // Replay each turn as if it just happened
+    for (const turn of data.history) {
+      appendMessage('user', turn.user);
+      appendAIMessage(turn.response);
+    }
+  } catch (err) {
+    console.warn('[Nexon] Could not load chat history:', err);
+  }
+}
+
 function clearChat() {
+  // Clear UI
   document.getElementById('messages-list').innerHTML = '';
   document.getElementById('welcome-screen').style.display = '';
   document.querySelectorAll('.category-item').forEach(el => el.classList.remove('active'));
   currentCategory = null;
+
+  // Clear backend session too
+  apiFetch(`${API_BASE}/chat/clear`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: SESSION_ID })
+  }).catch(err => console.warn('[Nexon] Could not clear backend session:', err));
 }
 
 function toggleSidebar() {
@@ -607,13 +670,50 @@ async function submitLogin() {
     if (!res.ok) throw new Error(data.message || `Login failed with status ${res.status}`);
 
     // The endpoint returns { token: { token, userId, fullName, ... } }
+    // .NET JWT claims can appear under many different key names depending on
+    // the ASP.NET version and IdentityServer config, so we try all known variants.
     if (data && data.token) {
       AUTH_TOKEN = data.token.token;
-      USER_ID = data.token.userId || data.token.nameidentifier || '';
-      USER_NAME = data.token.fullName || email.split('@')[0];
+
+      // --- Extract userId robustly (order of priority) ---
+      USER_ID =
+        data.token.userId            ||   // custom field (some backends)
+        data.token.UserId            ||   // PascalCase variant
+        data.token.id                ||   // short form
+        data.token.sub               ||   // standard JWT "subject"
+        data.token.nameid            ||   // short claim alias
+        data.token.nameidentifier    ||   // another common alias
+        // Full .NET claim URI (sometimes returned as-is in response body)
+        data.token['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ||
+        null;
+
+      // Last resort: decode the JWT payload ourselves to extract the sub/nameidentifier
+      if (!USER_ID && AUTH_TOKEN) {
+        try {
+          const payload = JSON.parse(atob(AUTH_TOKEN.split('.')[1]));
+          USER_ID =
+            payload.sub  ||
+            payload.nameid ||
+            payload.nameidentifier ||
+            payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ||
+            null;
+          console.log('[Nexon] JWT payload keys:', Object.keys(payload));
+        } catch (jwtErr) {
+          console.warn('[Nexon] Could not decode JWT payload:', jwtErr);
+        }
+      }
+
+      USER_NAME = data.token.fullName || data.token.FullName || email.split('@')[0];
+
+      // Debug — remove in production
+      console.log('[Nexon] Login success | USER_ID:', USER_ID, '| USER_NAME:', USER_NAME);
+      if (!USER_ID) {
+        console.warn('[Nexon] ⚠️ USER_ID is empty! token keys:', Object.keys(data.token));
+      }
     } else {
       throw new Error('Unexpected response format from server.');
     }
+
 
     localStorage.setItem('nexon_auth_token', AUTH_TOKEN);
     localStorage.setItem('nexon_user_id', USER_ID);

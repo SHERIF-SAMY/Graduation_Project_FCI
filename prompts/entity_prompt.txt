@@ -1,24 +1,23 @@
-Extract ONLY explicitly mentioned rental product attributes from the user message.
+Extract rental product attributes from the user query, using the conversation history to resolve references (like "it", "that", "سعره", "سعرها", "في منه", "مكانه", "ده", "دي", "نفسه").
 
 Fields: category, brand, location, max_price, condition (New/Used), name_keyword
 
 CRITICAL RULES:
-- ONLY extract a field if the user CLEARLY and EXPLICITLY mentioned it.
-- If the user did NOT mention a location, set location to null. Do NOT guess or infer locations.
-- If the user did NOT mention a condition (new/used), set condition to null. Do NOT guess.
-- If the user did NOT mention a brand, set brand to null.
-- If the user did NOT mention a price, set max_price to null.
-- Arabic words like "على", "بنور", "عايز", "بدور", "محتاج" are NOT locations or conditions — ignore them.
+1. CONTEXT RESOLUTION: If the user query is a follow-up asking for details (e.g., "سعره كام؟", "هو فين؟", "في منه جديد؟", "how much is it?", "where is it?"), the pronoun refers to the product in the LAST assistant message. Identify that product (name_keyword, brand) and carry them over to the output JSON. For example, if the last AI turn mentions a "Canon camera", resolve "سعرها كام؟" to name_keyword "camera" and brand "Canon".
+2. NO ASSISTANT FILTER BLEED: Do NOT extract filters like location, condition, or max_price from the assistant's previous responses. Only set location, condition, or max_price if the user explicitly specified them in their queries.
+3. Keep location, category, brand, max_price, and condition as null if they cannot be resolved/carried over.
+4. Ignore Arabic query words like "على", "بنور", "عايز", "بدور", "محتاج" — they are not values.
 
 Translation rules (output values in English):
-- Product names/keywords: "لابتوب"/"لابتوبات" → "laptop", "كاميرا"/"كاميرات" → "camera", "دراجة" → "bike", "موبايل" → "mobile", "طابعة" → "printer", "بروجيكتور" → "projector", "سماعة" → "headphone", "عجلة" → "bike", "تلفزيون" → "TV"
+- Product names/keywords: ALWAYS translate Arabic product names to English. Examples: "لابتوب" → "laptop", "كاميرا" → "camera", "عجلة"/"دراجة" → "bike", "فستان"/"دريس" → "dress", "طرحة/حجاب" → "hejab", "تيشرت" → "t-shirt", "موبايل" → "mobile", "طابعة" → "printer", "سماعة" → "headphone", "تلفزيون" → "TV"
 - Always use SINGULAR form for name_keyword: "laptops" → "laptop", "cameras" → "camera"
-- Locations (only if user explicitly said a place): "المعادي" → "Maadi", "مدينة نصر" → "Nasr City", "الزمالك" → "Zamalek", "الدقي" → "Dokki", "الإسكندرية" → "Alexandria", "هليوبوليس" → "Heliopolis"
+- Ignore generic names. If the user asks for "منتجات" (products), "حاجة" (thing), "اي حاجة" (anything), or just "ارخص حاجة" (cheapest thing), set name_keyword to null.
+- Locations: "المعادي" → "Maadi", "مدينة نصر" → "Nasr City", "الزمالك" → "Zamalek", "الدقي" → "Dokki", "الإسكندرية" → "Alexandria", "هليوبوليس" → "Heliopolis". For any other location (e.g. "كفر الشيخ", "طنطا"), KEEP it in Arabic.
 - Condition: "جديد"/"جديدة"/"new" → "New"; "مستعمل"/"مستخدم"/"used" → "Used"
 - Do NOT set category when you have a name_keyword — set category to null.
 
 User message: "{user_query}"
 
 Reply with ONLY a valid JSON object. No explanation.
-If a field is not explicitly mentioned, set it to null.
+If a field is not mentioned or implied from history, set it to null.
 Example: {{"category": null, "brand": null, "location": null, "max_price": null, "condition": null, "name_keyword": "laptop"}}

@@ -25,7 +25,10 @@ def rank_products(products: list, entities: dict) -> list:
             
         # Priority 2: Price fit
         max_price = entities.get('max_price') if entities else None
-        price = product.get('PricePerDay', float('inf'))
+        val = product.get('FinalPricePerDay')
+        if val is None:
+            val = product.get('PricePerDay')
+        price = float(val) if val is not None else float('inf')
         # If max_price is specified and price is within budget
         if max_price is not None and price <= max_price:
             score += 2.0

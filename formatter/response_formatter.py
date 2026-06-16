@@ -2,7 +2,7 @@ from models.response_models import Product, ChatResponse, SearchResponse
 import os
 
 # .NET API base — used to prefix relative image URLs from the DB
-_DOTNET_BASE = os.getenv("DOTNET_API_BASE", "http://rentalplatform.runasp.net").rstrip("/")
+_DOTNET_BASE = os.getenv("DOTNET_API_BASE", "https://rentalplatform.runasp.net").rstrip("/")
 
 def _resolve_image_url(raw: str | None) -> str | None:
     """Turns a relative DB path (/uploads/...) into an absolute URL pointing at the .NET server."""
@@ -15,7 +15,10 @@ def _resolve_image_url(raw: str | None) -> str | None:
 def format_product(db_row: dict) -> Product:
     # Ensure PricePerDay can be parsed as float, default to 0.0
     try:
-        price = float(db_row.get('PricePerDay', 0.0))
+        val = db_row.get('FinalPricePerDay')
+        if val is None:
+            val = db_row.get('PricePerDay')
+        price = float(val) if val is not None else 0.0
     except (TypeError, ValueError):
         price = 0.0
 

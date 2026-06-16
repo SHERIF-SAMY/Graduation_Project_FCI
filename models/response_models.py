@@ -18,6 +18,7 @@ class BookingAction(BaseModel):
     order_id: Optional[int] = None
     requires_input: Optional[str] = None  # "dates" | "delivery" | "address" | "confirmation"
     summary: Optional[dict] = None
+    orders: Optional[List[str]] = None
 
 class ChatResponse(BaseModel):
     answer: str
