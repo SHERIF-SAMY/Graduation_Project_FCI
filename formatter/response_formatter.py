@@ -1,4 +1,16 @@
 from models.response_models import Product, ChatResponse, SearchResponse
+import os
+
+# .NET API base — used to prefix relative image URLs from the DB
+_DOTNET_BASE = os.getenv("DOTNET_API_BASE", "http://rentalplatform.runasp.net").rstrip("/")
+
+def _resolve_image_url(raw: str | None) -> str | None:
+    """Turns a relative DB path (/uploads/...) into an absolute URL pointing at the .NET server."""
+    if not raw:
+        return None
+    if raw.startswith("http://") or raw.startswith("https://"):
+        return raw  # already absolute
+    return f"{_DOTNET_BASE}{raw}"  # e.g. http://rentalplatform.runasp.net/uploads/products/xxx.jpg
 
 def format_product(db_row: dict) -> Product:
     # Ensure PricePerDay can be parsed as float, default to 0.0
@@ -24,7 +36,7 @@ def format_product(db_row: dict) -> Product:
         location=db_row.get('LocationArea', 'Unknown'),
         rental_guarantee=bool(db_row.get('RentalGuarantee', False)),
         status="Available" if db_row.get('Status') in (1, "1") else "Unavailable",
-        image_url=db_row.get('ImageUrl')
+        image_url=_resolve_image_url(db_row.get('ImageUrl'))
     )
 
 def format_chat_response(answer: str, intent: str, products_raw: list, latency_ms: int, cached: bool, booking_action: dict = None) -> dict:

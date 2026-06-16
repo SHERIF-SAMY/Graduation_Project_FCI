@@ -31,10 +31,20 @@ def _is_arabic(text: str) -> bool:
 
 app = FastAPI(title="AI Rental Marketplace Assistant", version="1.0.0")
 
+# Force browsers to always fetch fresh static files (fixes ngrok cache issues)
+@app.middleware("http")
+async def no_cache_middleware(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/app"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -212,4 +222,4 @@ async def recommendations_endpoint(
     return await get_recommendations(req)
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8001, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

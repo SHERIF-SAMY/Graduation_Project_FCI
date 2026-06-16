@@ -1,4 +1,13 @@
-const API_BASE = 'http://127.0.0.1:8000';
+const API_BASE = 'https://remunerative-alita-nonfluent.ngrok-free.dev';
+
+// ─── Ngrok-aware fetch wrapper ───
+async function apiFetch(url, options = {}) {
+  const headers = {
+    'ngrok-skip-browser-warning': 'true',
+    ...(options.headers || {})
+  };
+  return fetch(url, { ...options, headers });
+}
 
 // ─── Generate unique session ID per browser session ───
 const SESSION_ID = sessionStorage.getItem('nexon_session_id') || (() => {
@@ -49,11 +58,11 @@ function switchTab(tabId) {
   // Update buttons
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   event.currentTarget.classList.add('active');
-  
+
   // Update views
   document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
   document.getElementById(`${tabId}-view`).classList.add('active');
-  
+
   if (tabId === 'chat') {
     document.getElementById('chat-input').focus();
   } else if (tabId === 'discover') {
@@ -66,14 +75,14 @@ async function fetchRecommendations() {
   const grid = document.getElementById('recommendations-grid');
   const metadata = document.getElementById('rec-metadata');
   const explanation = document.getElementById('rec-explanation');
-  
+
   grid.innerHTML = '<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text3);">Loading recommendations...</div>';
-  
+
   try {
-    const res = await fetch(`${API_BASE}/recommendations?session_id=${SESSION_ID}&limit=6`);
+    const res = await apiFetch(`${API_BASE}/recommendations?session_id=${SESSION_ID}&limit=6`);
     if (!res.ok) throw new Error('Failed to fetch recommendations');
     const data = await res.json();
-    
+
     // Update Metadata Badge
     const isCold = data.recommendation_type === 'cold_start';
     const confScore = Math.round(data.user_profile.profile_confidence * 100);
@@ -84,7 +93,7 @@ async function fetchRecommendations() {
       <span style="font-size: 11px; color: var(--text3);">Confidence: ${confScore}%</span>
       <span style="font-size: 11px; color: var(--text3); margin-left: auto;">${data.latency_ms}ms</span>
     `;
-    
+
     // Update Explanation
     if (data.explanation) {
       explanation.style.display = 'block';
@@ -92,7 +101,7 @@ async function fetchRecommendations() {
     } else {
       explanation.style.display = 'none';
     }
-    
+
     // Render Products
     if (data.products && data.products.length > 0) {
       grid.innerHTML = data.products.map((p, i) => {
@@ -103,7 +112,7 @@ async function fetchRecommendations() {
     } else {
       grid.innerHTML = '<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text3);">No recommendations available yet.</div>';
     }
-    
+
   } catch (err) {
     console.error(err);
     grid.innerHTML = '<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--red);">Failed to load recommendations. Make sure backend is running.</div>';
@@ -115,7 +124,7 @@ async function checkHealth() {
   const dot = document.getElementById('health-dot');
   const text = document.getElementById('health-text');
   try {
-    const res = await fetch(`${API_BASE}/health`);
+    const res = await apiFetch(`${API_BASE}/health`);
     const data = await res.json();
     if (data.db === 'ok') {
       dot.className = 'health-dot ok';
@@ -136,7 +145,7 @@ async function checkHealth() {
 async function loadCategories() {
   const list = document.getElementById('categories-list');
   try {
-    const res = await fetch(`${API_BASE}/categories`);
+    const res = await apiFetch(`${API_BASE}/categories`);
     const data = await res.json();
     const cats = data.categories || [];
 
@@ -204,11 +213,11 @@ async function sendMessage() {
   setLoading(true);
 
   try {
-    const res = await fetch(`${API_BASE}/chat`, {
+    const res = await apiFetch(`${API_BASE}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        query, 
+      body: JSON.stringify({
+        query,
         session_id: SESSION_ID,
         user_id: USER_ID,
         auth_token: AUTH_TOKEN
@@ -273,6 +282,14 @@ function appendAIMessage(data) {
 
   list.appendChild(div);
   scrollToBottom();
+
+  // Auto-logout if the bot reports a session/token expiry
+  const answer = data.answer || '';
+  const isExpired = answer.includes('session has expired') || answer.includes('انتهت جلستك');
+  if (isExpired && AUTH_TOKEN) {
+    logout();
+    setTimeout(() => document.getElementById('login-modal').classList.add('active'), 800);
+  }
 }
 
 // ─── Product card HTML ───
@@ -285,7 +302,7 @@ function productCard(p, debugInfo = null) {
   const gTagHtml = p.rental_guarantee ? '<span class="product-tag tag-guarantee">🛡️ Guaranteed</span>' : '';
 
   const imgHtml = p.image_url
-    ? `<img class="product-img" src="${API_BASE}${p.image_url}" alt="${escapeHtml(p.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+    ? `<img class="product-img" src="${p.image_url}" alt="${escapeHtml(p.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
        <span class="product-icon product-icon-fallback" style="display:none">${icon}</span>`
     : `<span class="product-icon product-icon-fallback">${icon}</span>`;
 
@@ -317,14 +334,14 @@ function productCard(p, debugInfo = null) {
 // ─── View single product ───
 async function viewProduct(id) {
   try {
-    const res = await fetch(`${API_BASE}/products/${id}`);
+    const res = await apiFetch(`${API_BASE}/products/${id}`);
     if (!res.ok) throw new Error('Product not found');
     const p = await res.json();
     const icon = getProductIcon(p.category, p.name);
     const modal = document.getElementById('search-modal');
 
     const heroHtml = p.image_url
-      ? `<img src="${API_BASE}${p.image_url}" alt="${escapeHtml(p.name)}"
+      ? `<img src="${p.image_url}" alt="${escapeHtml(p.name)}"
               style="width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-bottom:16px;"
               onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
          <div style="display:none;font-size:56px;margin-bottom:16px;text-align:center;">${icon}</div>`
@@ -378,7 +395,7 @@ async function fetchLiveSearch(val) {
   dd.classList.add('open');
 
   try {
-    const res = await fetch(`${API_BASE}/search/live?q=${encodeURIComponent(val.trim())}`);
+    const res = await apiFetch(`${API_BASE}/search/live?q=${encodeURIComponent(val.trim())}`);
     const data = await res.json();
     renderLiveDropdown(data.products || []);
   } catch {
@@ -452,7 +469,7 @@ async function quickSearch() {
   if (condition) body.condition = condition;
 
   try {
-    const res = await fetch(`${API_BASE}/search`, {
+    const res = await apiFetch(`${API_BASE}/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -574,12 +591,12 @@ async function submitLogin() {
   btn.innerHTML = 'Logging in...';
 
   try {
-    const res = await fetch(`${API_BASE}/auth/login`, {
+    const res = await apiFetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    
+
     let data;
     try {
       data = await res.json();

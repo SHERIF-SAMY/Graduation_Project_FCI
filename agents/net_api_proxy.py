@@ -52,19 +52,19 @@ async def create_rental_order(
             response = await client.post(url, json=payload, headers=headers)
             
             if response.status_code in (200, 201):
-                # The API might return an object or an ID
-                # Assume it returns { "id": ... } or similar, fallback to just success=True
                 data = response.json() if response.text else {}
                 return {
                     "success": True, 
                     "order_id": data.get("id") or data.get("orderId") or "Success",
-                    "error": None
+                    "error": None,
+                    "status_code": response.status_code
                 }
             else:
                 return {
                     "success": False,
                     "order_id": None,
-                    "error": f"API Error {response.status_code}: {response.text}"
+                    "error": f"API Error {response.status_code}: {response.text}",
+                    "status_code": response.status_code
                 }
     except Exception as e:
         return {
@@ -91,11 +91,12 @@ async def cancel_rental_order(auth_token: str, order_id: int) -> dict:
             response = await client.put(url, headers=headers)
 
         if response.status_code in (200, 201, 204):
-            return {"success": True, "error": None}
+            return {"success": True, "error": None, "status_code": response.status_code}
         else:
             return {
                 "success": False,
-                "error": f"API Error {response.status_code}: {response.text}"
+                "error": f"API Error {response.status_code}: {response.text}",
+                "status_code": response.status_code
             }
     except Exception as e:
         return {"success": False, "error": f"Request failed: {str(e)}"}

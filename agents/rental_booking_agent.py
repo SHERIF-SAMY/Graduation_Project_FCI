@@ -2,6 +2,18 @@ from memory.session_store import get_booking_context, update_booking_context, re
 from agents.booking_entity_extractor import extract_booking_entities
 from agents.net_api_proxy import create_rental_order, cancel_rental_order
 from sql.executor import execute_query
+import re
+
+def _detect_lang(text: str) -> str:
+    """Returns 'en' if the text is mostly Latin/English, 'ar' otherwise."""
+    if not text:
+        return "ar"
+    latin = sum(1 for c in text if ord(c) < 256 and c.isalpha())
+    arabic = sum(1 for c in text if '\u0600' <= c <= '\u06ff')
+    return "en" if latin > arabic else "ar"
+
+def _msg(ar: str, en: str, lang: str) -> str:
+    return en if lang == "en" else ar
 
 async def handle_booking_flow(
     session_id: str, 
@@ -18,6 +30,7 @@ async def handle_booking_flow(
     Returns a dict with {"agent_message": str, "state": str, "order_id": int/None, "summary": dict/None}
     """
     ctx = get_booking_context(session_id)
+    lang = _detect_lang(user_query)
     
     # 1. Handle Cancel — ask for which order + confirmation
     if intent == "book_cancel":
@@ -29,7 +42,11 @@ async def handle_booking_flow(
         if not auth_token:
             reset_booking_context(session_id)
             return {
-                "agent_message": "لازم تسجّل دخول الأول عشان تقدر تلغي طلب.",
+                "agent_message": _msg(
+                    "لازم تسجّل دخول الأول عشان تقدر تلغي طلب.",
+                    "You need to log in first to cancel an order.",
+                    lang
+                ),
                 "state": "IDLE",
                 "order_id": None,
                 "summary": None
@@ -46,7 +63,11 @@ async def handle_booking_flow(
                     pending_cancel_order_id=order_id
                 )
                 return {
-                    "agent_message": f"⚠️ متأكد إنك عايز تلغي الطلب رقم {order_id}؟ قول (أيوه / لأ)",
+                    "agent_message": _msg(
+                        f"⚠️ متأكد إنك عايز تلغي الطلب رقم {order_id}؟ قول (أيوه / لأ)",
+                        f"⚠️ Are you sure you want to cancel order #{order_id}? (yes / no)",
+                        lang
+                    ),
                     "state": "AWAITING_CANCEL_CONFIRM",
                     "order_id": None,
                     "summary": None
@@ -64,10 +85,14 @@ async def handle_booking_flow(
                     rows = []
 
                 if rows:
-                    orders_text = "\n".join([f"- رقم {r['Id']}: {r['Name']}" for r in rows])
+                    orders_text = "\n".join([f"- #{r['Id']}: {r['Name']}" for r in rows])
                     update_booking_context(session_id, state="AWAITING_CANCEL_CONFIRM")
                     return {
-                        "agent_message": f"طلباتك الحالية:\n{orders_text}\n\nادخل رقم الطلب اللي عايز تلغيه:",
+                        "agent_message": _msg(
+                            f"طلباتك الحالية:\n{orders_text}\n\nادخل رقم الطلب اللي عايز تلغيه:",
+                            f"Your current orders:\n{orders_text}\n\nEnter the order number you want to cancel:",
+                            lang
+                        ),
                         "state": "AWAITING_CANCEL_CONFIRM",
                         "order_id": None,
                         "summary": None
@@ -75,7 +100,11 @@ async def handle_booking_flow(
                 else:
                     reset_booking_context(session_id)
                     return {
-                        "agent_message": "مش لاقي طلبات قيد الانتظار عندك دلوقتي.",
+                        "agent_message": _msg(
+                            "مش لاقي طلبات قيد الانتظار عندك دلوقتي.",
+                            "You don't have any active orders at the moment.",
+                            lang
+                        ),
                         "state": "IDLE",
                         "order_id": None,
                         "summary": None
@@ -94,7 +123,11 @@ async def handle_booking_flow(
             update_booking_context(session_id, pending_cancel_order_id=order_id)
             ctx = get_booking_context(session_id)
             return {
-                "agent_message": f"⚠️ متأكد إنك عايز تلغي الطلب رقم {order_id}؟ قول (أيوه / لأ)",
+                "agent_message": _msg(
+                    f"⚠️ متأكد إنك عايز تلغي الطلب رقم {order_id}؟ قول (أيوه / لأ)",
+                    f"⚠️ Are you sure you want to cancel order #{order_id}? (yes / no)",
+                    lang
+                ),
                 "state": "AWAITING_CANCEL_CONFIRM",
                 "order_id": None,
                 "summary": None
@@ -104,7 +137,11 @@ async def handle_booking_flow(
             if not ctx.pending_cancel_order_id:
                 reset_booking_context(session_id)
                 return {
-                    "agent_message": "مش عارف رقم الطلب المطلوب إلغاؤه.",
+                    "agent_message": _msg(
+                        "مش عارف رقم الطلب المطلوب إلغاؤه.",
+                        "I don't know which order you'd like to cancel.",
+                        lang
+                    ),
                     "state": "IDLE",
                     "order_id": None,
                     "summary": None
@@ -113,14 +150,22 @@ async def handle_booking_flow(
             reset_booking_context(session_id)
             if result["success"]:
                 return {
-                    "agent_message": f"✅ تم إلغاء الطلب رقم {ctx.pending_cancel_order_id} بنجاح!",
+                    "agent_message": _msg(
+                        f"✅ تم إلغاء الطلب رقم {ctx.pending_cancel_order_id} بنجاح!",
+                        f"✅ Order #{ctx.pending_cancel_order_id} has been successfully cancelled!",
+                        lang
+                    ),
                     "state": "CANCELLED",
                     "order_id": None,
                     "summary": None
                 }
             else:
                 return {
-                    "agent_message": f"❌ حصلت مشكلة أثناء الإلغاء: {result['error']}",
+                    "agent_message": _msg(
+                        f"❌ حصلت مشكلة أثناء الإلغاء: {result['error']}",
+                        f"❌ Something went wrong while cancelling: {result['error']}",
+                        lang
+                    ),
                     "state": "IDLE",
                     "order_id": None,
                     "summary": None
@@ -128,15 +173,22 @@ async def handle_booking_flow(
         elif is_confirmed is False or intent == "book_cancel":
             reset_booking_context(session_id)
             return {
-                "agent_message": "تمام، مش هلغي الطلب. لو محتاج حاجة أنا موجود!",
+                "agent_message": _msg(
+                    "تمام، مش هلغي الطلب. لو محتاج حاجة أنا موجود!",
+                    "Got it, I won't cancel the order. Let me know if you need anything!",
+                    lang
+                ),
                 "state": "IDLE",
                 "order_id": None,
                 "summary": None
             }
         else:
-            # Still waiting for yes/no
             return {
-                "agent_message": f"هل تأكيد إلغاء الطلب رقم {ctx.pending_cancel_order_id}؟ (أيوه / لأ)",
+                "agent_message": _msg(
+                    f"هل تأكيد إلغاء الطلب رقم {ctx.pending_cancel_order_id}؟ (أيوه / لأ)",
+                    f"Please confirm: cancel order #{ctx.pending_cancel_order_id}? (yes / no)",
+                    lang
+                ),
                 "state": "AWAITING_CANCEL_CONFIRM",
                 "order_id": None,
                 "summary": None
@@ -151,7 +203,11 @@ async def handle_booking_flow(
     if ctx.state == "IDLE" and intent == "book_initiate":
         if not user_id or not auth_token:
             return {
-                "agent_message": "عشان أقدر أحجزلك، محتاج تسجّل دخول الأول.",
+                "agent_message": _msg(
+                    "عشان أقدر أحجزلك، محتاج تسجّل دخول الأول.",
+                    "You need to log in first before making a booking.",
+                    lang
+                ),
                 "state": "IDLE",
                 "order_id": None,
                 "summary": None
@@ -163,7 +219,7 @@ async def handle_booking_flow(
         # If there's only 1 product in search results and user initiated booking
         if len(products) == 1:
             prod = products[0]
-            unavailable_msg = _check_product_available(prod.get("Id"))
+            unavailable_msg = _check_product_available(prod.get("Id"), lang)
             if unavailable_msg:
                 reset_booking_context(session_id)
                 return {"agent_message": unavailable_msg, "state": "IDLE", "order_id": None, "summary": None}
@@ -173,7 +229,7 @@ async def handle_booking_flow(
                 product_name=prod.get("Name"),
                 price_per_day=prod.get("FinalPricePerDay") or prod.get("PricePerDay", 0)
             )
-            return _ask_dates()
+            return _ask_dates(lang)
             
         elif len(products) > 1:
             # We need to know which one
@@ -181,7 +237,7 @@ async def handle_booking_flow(
                 # Try to find by name loosely
                 matched = next((p for p in products if selected_product.lower() in str(p.get("Name")).lower()), None)
                 if matched:
-                    unavailable_msg = _check_product_available(matched.get("Id"))
+                    unavailable_msg = _check_product_available(matched.get("Id"), lang)
                     if unavailable_msg:
                         reset_booking_context(session_id)
                         return {"agent_message": unavailable_msg, "state": "IDLE", "order_id": None, "summary": None}
@@ -191,20 +247,28 @@ async def handle_booking_flow(
                         product_name=matched.get("Name"),
                         price_per_day=matched.get("FinalPricePerDay") or matched.get("PricePerDay", 0)
                     )
-                    return _ask_dates()
+                    return _ask_dates(lang)
             
             # Need clarification
             update_booking_context(session_id, state="AWAITING_PRODUCT")
-            names = "، ".join([p.get("Name", "منتج") for p in products[:3]])
+            names = ", ".join([p.get("Name", "product") for p in products[:3]])
             return {
-                "agent_message": f"تقصد أنهي منتج بالظبط؟ (مثلاً: {names} ...)",
+                "agent_message": _msg(
+                    f"تقصد أنهي منتج بالظبط؟ (مثلاً: {names} ...)",
+                    f"Which product exactly? (e.g. {names} ...)",
+                    lang
+                ),
                 "state": "AWAITING_PRODUCT",
                 "order_id": None,
                 "summary": None
             }
         else:
             return {
-                "agent_message": "مش لاقي المنتج اللي تقصده. ممكن تدور عليه الأول؟",
+                "agent_message": _msg(
+                    "مش لاقي المنتج اللي تقصده. ممكن تدور عليه الأول؟",
+                    "I couldn't find the product you're looking for. Can you search for it first?",
+                    lang
+                ),
                 "state": "IDLE",
                 "order_id": None,
                 "summary": None
@@ -234,7 +298,11 @@ async def handle_booking_flow(
             ctx = get_booking_context(session_id) 
         else:
             return {
-                "agent_message": "لسه مش متأكد تقصد أنهي منتج بالظبط.",
+                "agent_message": _msg(
+                    "لسه مش متأكد تقصد أنهي منتج بالظبط.",
+                    "I'm not sure which product you mean. Could you be more specific?",
+                    lang
+                ),
                 "state": "AWAITING_PRODUCT",
                 "order_id": None,
                 "summary": None
@@ -272,7 +340,11 @@ async def handle_booking_flow(
                 ctx = get_booking_context(session_id)
         else:
             return {
-                "agent_message": "تحب تستلم المنتج بنفسك (Pickup) ولا يوصلك لحد عندك (Delivery)؟",
+                "agent_message": _msg(
+                    "تحب تستلم المنتج بنفسك (Pickup) ولا يوصلك لحد عندك (Delivery)؟",
+                    "Would you prefer to pick it up yourself (Pickup) or have it delivered to you (Delivery)?",
+                    lang
+                ),
                 "state": "AWAITING_DELIVERY_METHOD",
                 "order_id": None,
                 "summary": None
@@ -285,7 +357,11 @@ async def handle_booking_flow(
             ctx = get_booking_context(session_id)
         else:
             return {
-                "agent_message": "تمام! العنوان بالتفصيل إيه؟ (المدينة، الشارع، المحافظة)",
+                "agent_message": _msg(
+                    "تمام! العنوان بالتفصيل إيه؟ (المدينة، الشارع، المحافظة)",
+                    "What's your delivery address? (city, street, governorate)",
+                    lang
+                ),
                 "state": "AWAITING_ADDRESS",
                 "order_id": None,
                 "summary": None
@@ -311,15 +387,36 @@ async def handle_booking_flow(
                 order_id = result["order_id"]
                 reset_booking_context(session_id)
                 return {
-                    "agent_message": f"✅ تم تسجيل طلبك بنجاح! رقم الطلب: {order_id}",
+                    "agent_message": _msg(
+                        f"✅ تم تسجيل طلبك بنجاح! رقم الطلب: {order_id}",
+                        f"✅ Your booking has been confirmed! Order number: {order_id}",
+                        lang
+                    ),
                     "state": "CONFIRMED",
                     "order_id": order_id,
                     "summary": None
                 }
             else:
+                # 401 = session expired — ask user to log in again
+                if result.get("status_code") == 401:
+                    reset_booking_context(session_id)
+                    return {
+                        "agent_message": _msg(
+                            "⚠️ انتهت جلستك، محتاج تسجّل دخول من تاني وتعيد المحاولة.",
+                            "⚠️ Your session has expired. Please log in again and try booking.",
+                            lang
+                        ),
+                        "state": "IDLE",
+                        "order_id": None,
+                        "summary": None
+                    }
                 err = result["error"]
                 return {
-                    "agent_message": f"للأسف حصلت مشكلة أثناء تأكيد الطلب: {err}",
+                    "agent_message": _msg(
+                        f"للأسف حصلت مشكلة أثناء تأكيد الطلب: {err}",
+                        f"Sorry, something went wrong while confirming your order: {err}",
+                        lang
+                    ),
                     "state": "AWAITING_CONFIRMATION",
                     "order_id": None,
                     "summary": _build_summary(ctx)
@@ -328,7 +425,11 @@ async def handle_booking_flow(
         elif is_confirmed is False:
              reset_booking_context(session_id)
              return {
-                 "agent_message": "تم إلغاء الطلب بناء على رغبتك.",
+                 "agent_message": _msg(
+                     "تم إلغاء الطلب بناء على رغبتك.",
+                     "Order cancelled as per your request.",
+                     lang
+                 ),
                  "state": "CANCELLED",
                  "order_id": None,
                  "summary": None
@@ -345,19 +446,34 @@ async def handle_booking_flow(
                 d2 = datetime.fromisoformat(ctx.end_date.split("T")[0])
                 num_days = max((d2 - d1).days + 1, 1)  # inclusive: both start and end day count
                 total_price = round(num_days * float(ctx.price_per_day or 0), 2)
-                price_line = f"💰 السعر: {ctx.price_per_day} EGP/يوم × {num_days} يوم = {total_price} EGP\n"
+                price_line = _msg(
+                    f"💰 السعر: {ctx.price_per_day} EGP/يوم × {num_days} يوم = {total_price} EGP\n",
+                    f"💰 Price: {ctx.price_per_day} EGP/day x {num_days} days = {total_price} EGP\n",
+                    lang
+                )
             except Exception:
                 price_line = ""
 
-            msg = f"ممتاز! هأكد الطلب ده:\n"
-            msg += f"📦 المنتج: {ctx.product_name}\n"
-            msg += f"📅 من: {ctx.start_date} إلى {ctx.end_date}\n"
-            if ctx.delivery_method.lower() == "delivery":
-                msg += f"🚚 توصيل: {ctx.street}، {ctx.city}، {ctx.governorate}\n"
+            if lang == "en":
+                msg = f"Great! Let me confirm your order:\n"
+                msg += f"📦 Product: {ctx.product_name}\n"
+                msg += f"📅 From: {ctx.start_date} to {ctx.end_date}\n"
+                if ctx.delivery_method.lower() == "delivery":
+                    msg += f"🚚 Delivery to: {ctx.street}, {ctx.city}, {ctx.governorate}\n"
+                else:
+                    msg += f"🏢 Pickup from owner\n"
+                msg += price_line
+                msg += "\nConfirm? (yes / no)"
             else:
-                msg += f"🏢 استلام من المالك\n"
-            msg += price_line
-            msg += "\nتأكيد؟ (أيوه / لأ)"
+                msg = f"ممتاز! هأكد الطلب ده:\n"
+                msg += f"📦 المنتج: {ctx.product_name}\n"
+                msg += f"📅 من: {ctx.start_date} إلى {ctx.end_date}\n"
+                if ctx.delivery_method.lower() == "delivery":
+                    msg += f"🚚 توصيل: {ctx.street}، {ctx.city}، {ctx.governorate}\n"
+                else:
+                    msg += f"🏢 استلام من المالك\n"
+                msg += price_line
+                msg += "\nتأكيد؟ (أيوه / لأ)"
             
             return {
                 "agent_message": msg,
@@ -368,15 +484,23 @@ async def handle_booking_flow(
 
     # Fallback
     return {
-        "agent_message": "مش متأكد أنت تقصد إيه في الطلب، ممكن نلغيه ونبدأ من الأول؟",
+        "agent_message": _msg(
+            "مش متأكد أنت تقصد إيه في الطلب، ممكن نلغيه ونبدأ من الأول؟",
+            "I'm not sure what you mean. Shall we start over?",
+            lang
+        ),
         "state": ctx.state,
         "order_id": None,
         "summary": None
     }
 
-def _ask_dates():
+def _ask_dates(lang: str = "ar"):
     return {
-        "agent_message": "تمام! محتاج تأجره من إمتى لإمتى بالظبط؟ (مثلاً: من بكره لمدة 3 أيام، أو من 15 مايو لـ 18 مايو)",
+        "agent_message": _msg(
+            "تمام! محتاج تأجره من إمتى لإمتى بالظبط؟ (مثلاً: من بكره لمدة 3 أيام، أو من 15 مايو لـ 18 مايو)",
+            "When would you like to rent it? (e.g. from tomorrow for 3 days, or May 15 to May 18)",
+            lang
+        ),
         "state": "AWAITING_DATES",
         "order_id": None,
         "summary": None
@@ -391,7 +515,7 @@ def _build_summary(ctx):
         "delivery_method": ctx.delivery_method,
         "address": f"{ctx.street}, {ctx.city}, {ctx.governorate}"
     }
-def _check_product_available(product_id: int) -> str | None:
+def _check_product_available(product_id: int, lang: str = "ar") -> str | None:
     """
     Checks if a product has any active orders (Pending=0, Accepted=1, InProgress=4).
     Returns None if available, or an error message string if not.
@@ -405,7 +529,11 @@ def _check_product_available(product_id: int) -> str | None:
             {"pid": product_id}
         )
         if rows:
-            return "عذراً، المنتج ده محجوز دلوقتي ومش متاح للإيجار. اقدر اساعدك تلاقي منتج تاني."
+            return _msg(
+                "عذراً، المنتج ده محجوز دلوقتي ومش متاح للإيجار. اقدر اساعدك تلاقي منتج تاني.",
+                "Sorry, this product is currently rented and not available. Can I help you find another one?",
+                lang
+            )
     except Exception as e:
         print(f"[BookingAgent] Availability check error: {e}")
     return None
