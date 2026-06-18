@@ -572,7 +572,10 @@ function escapeHtml(text) {
 // ─── Load & restore previous chat history from backend ───
 async function loadChatHistory() {
   try {
-    const res = await apiFetch(`${API_BASE}/chat/history/${SESSION_ID}`);
+    const url = USER_ID
+      ? `${API_BASE}/chat/history/${SESSION_ID}?user_id=${encodeURIComponent(USER_ID)}`
+      : `${API_BASE}/chat/history/${SESSION_ID}`;
+    const res = await apiFetch(url);
     if (!res.ok) return;
     const data = await res.json();
     if (!data.history || data.history.length === 0) return;

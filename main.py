@@ -131,14 +131,14 @@ async def chat_endpoint(request: ChatRequest, fastapi_req: Request):
 
 
 @app.get("/chat/history/{session_id}")
-def get_chat_history(session_id: str):
+def get_chat_history(session_id: str, user_id: Optional[str] = Query(default=None)):
     """
     Returns the stored UI chat history for a given session_id.
     Each item contains the user's message and the full AI response (including products).
     This allows the frontend to restore the conversation when the user navigates back.
     """
     history = get_ui_history(session_id)
-    return {"session_id": session_id, "history": history, "count": len(history)}
+    return {"session_id": session_id, "user_id": user_id, "history": history, "count": len(history)}
 
 
 @app.post("/chat/clear")
@@ -256,4 +256,10 @@ async def recommendations_endpoint(
     return await get_recommendations(req)
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    import os
+    uvicorn.run(
+        "main:app", 
+        host="0.0.0.0", 
+        port=int(os.environ.get("PORT", 8000)), 
+        reload=os.environ.get("ENV", "production") != "production"
+    )
