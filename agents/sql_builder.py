@@ -48,22 +48,25 @@ def build_sql(entities: dict) -> tuple[str, dict]:
         # Normalize to singular: strip trailing 's' so "laptops" → "laptop",
         # "cameras" → "camera", matching "Dell Laptop" / "Canon DSLR Camera" in the DB.
         kw = name_keyword.strip().lower()
-        if kw.endswith("s") and len(kw) > 3:
+        if kw.endswith("s") and not kw.endswith("ss") and len(kw) > 3:
             kw = kw[:-1]   # "laptops" → "laptop", "cameras" → "camera"
 
         # Blacklist of generic words that shouldn't be used as a name filter
         generic_words = {"product", "thing", "item", "anything", "منتج", "منتجات", "حاجة", "اشياء", "أشياء", "اي حاجة", "أي حاجة"}
         
         if kw not in generic_words:
-            # Search across Name, CategoryName, and ProductType using OR
-            query += (
-                " AND ("
-                "Name LIKE :kw"
-                " OR CategoryName LIKE :kw"
-                " OR ProductType  LIKE :kw"
-                ")"
-            )
-            params["kw"] = f"%{kw}%"
+            from utils.arabic_utils import PRODUCT_TRANSLATIONS
+            
+            # Find any Arabic words that translate to this English keyword
+            alt_kws = [k for k, v in PRODUCT_TRANSLATIONS.items() if v.lower() == kw]
+            search_kws = [kw] + alt_kws
+            
+            name_conditions = []
+            for i, term in enumerate(search_kws):
+                name_conditions.append(f"(Name LIKE :kw_{i} OR CategoryName LIKE :kw_{i} OR ProductType LIKE :kw_{i})")
+                params[f"kw_{i}"] = f"%{term}%"
+                
+            query += " AND (" + " OR ".join(name_conditions) + ")"
 
     query += " ORDER BY FinalPricePerDay ASC"
     return query, params

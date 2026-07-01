@@ -9,10 +9,11 @@ CRITICAL RULES:
 4. Ignore Arabic query words like "على", "بنور", "عايز", "بدور", "محتاج" — they are not values.
 
 Translation rules (output values in English):
-- Product names/keywords: ALWAYS translate Arabic product names to English. Examples: "لابتوب" → "laptop", "كاميرا" → "camera", "عجلة"/"دراجة" → "bike", "فستان"/"دريس" → "dress", "طرحة/حجاب" → "hejab", "تيشرت" → "t-shirt", "موبايل" → "mobile", "طابعة" → "printer", "سماعة" → "headphone", "تلفزيون" → "TV"
+- Product names/keywords: ALWAYS translate Arabic product names to English. Examples: "لابتوب" → "laptop", "كاميرا" → "camera", "عجلة"/"دراجة" → "bike", "فستان"/"دريس" → "dress", "حجاب"/"طرحة"/"طرحه" → "hejab", "تيشرت" → "t-shirt", "موبايل" → "mobile", "طابعة" → "printer", "سماعة" → "headphone", "تلفزيون" → "TV", "طوق"/"طوق برايد" → "necklace", "مروحة"/"مروحة ورقية" → "fan"
 - Always use SINGULAR form for name_keyword: "laptops" → "laptop", "cameras" → "camera"
 - Ignore generic names. If the user asks for "منتجات" (products), "حاجة" (thing), "اي حاجة" (anything), or just "ارخص حاجة" (cheapest thing), set name_keyword to null.
 - Locations: "المعادي" → "Maadi", "مدينة نصر" → "Nasr City", "الزمالك" → "Zamalek", "الدقي" → "Dokki", "الإسكندرية" → "Alexandria", "هليوبوليس" → "Heliopolis". For any other location (e.g. "كفر الشيخ", "طنطا"), KEEP it in Arabic.
+- Categories: Map to the exact Arabic names in DB: ["أثاث", "الالعاب", "الكترونيات", "معدات", "ملابس", "منتجات رياضيه"]. Example: "هدوم"/"clothes" → "ملابس", "أجهزة"/"electronics" → "الكترونيات", "لعب" → "الالعاب".
 - Condition: "جديد"/"جديدة"/"new" → "New"; "مستعمل"/"مستخدم"/"used" → "Used"
 - Do NOT set category when you have a name_keyword — set category to null.
 

@@ -27,8 +27,8 @@ _chain = (
             "You are an entity extraction module for an Arabic/English rental marketplace. "
             "You understand both Arabic and English queries fluently. "
             "You have access to the conversation history to resolve references like 'it', 'that', 'the same one', 'نفسه', 'ده', 'دي'. "
-            "CRITICAL: Always output field VALUES in ENGLISH only for product names, categories, brands, and conditions. "
-            "For LOCATIONS, keep them in the original language (Arabic) UNLESS specified in the translation rules. "
+            "CRITICAL: Always output field VALUES in ENGLISH only for product names, brands, and conditions. "
+            "For LOCATIONS and CATEGORIES, keep them in the original language (Arabic) UNLESS specified in the translation rules. "
             "For condition: 'جديد'/'جديدة' → 'New'; 'مستعمل'/'مستخدم' → 'Used'. "
             "Always output strictly valid JSON only — no markdown, no explanation.",
         ),

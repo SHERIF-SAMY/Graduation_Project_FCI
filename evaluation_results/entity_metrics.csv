@@ -1,0 +1,61 @@
+query,exp_name_keyword,pred_name_keyword,match_name_keyword,exp_brand,pred_brand,match_brand,exp_location,pred_location,match_location,exp_max_price,pred_max_price,match_max_price,exp_condition,pred_condition,match_condition,exp_category,pred_category,match_category
+عايز كاميرا كانون جديدة بأقل من 500 جنيه في المعادي,camera,,False,Canon,,False,Maadi,,False,500.0,,False,New,,False,,,True
+I need a used Dell laptop,laptop,,False,Dell,,False,,,True,,,True,Used,,False,,,True
+دراجة اطفال للبيع,bike,,False,,,True,,,True,,,True,,,True,,,True
+شقة للايجار في الزمالك ب 1000,apartment,,False,,,True,Zamalek,,False,1000.0,,False,,,True,,,True
+سامسونج جلاكسي مستعمل,galaxy,,False,Samsung,,False,,,True,,,True,Used,,False,,,True
+camera lens under 200,lens,,False,,,True,,,True,200.0,,False,,,True,,,True
+عايز فستان سواريه,dress,,False,,,True,,,True,,,True,,,True,,,True
+ps5 controller in dokki,controller,,False,ps5,,False,Dokki,,False,,,True,,,True,,,True
+ارخص حاجة,,,True,,,True,,,True,,,True,,,True,,,True
+اي منتج رخيص,,,True,,,True,,,True,,,True,,,True,,,True
+شاشة lg 4k جديدة,monitor,,False,lg,,False,,,True,,,True,New,,False,,,True
+apple watch used,watch,,False,apple,,False,,,True,,,True,Used,,False,,,True
+موبايل ايفون ب 300 في مدينة نصر,mobile,,False,iphone,,False,Nasr City,,False,300.0,,False,,,True,,,True
+خيمة سفاري ب 150,tent,,False,,,True,,,True,150.0,,False,,,True,,,True
+عربية تويوتا,car,,False,Toyota,,False,,,True,,,True,,,True,,,True
+used rolex watch,watch,,False,rolex,,False,,,True,,,True,Used,,False,,,True
+شقة مفروشة في الاسكندرية,apartment,,False,,,True,Alexandria,,False,,,True,,,True,,,True
+كاميرا سوني,camera,,False,Sony,,False,,,True,,,True,,,True,,,True
+دراجة بي ام اكس,bike,,False,bmx,,False,,,True,,,True,,,True,,,True
+ميكروفون بويا مستعمل,microphone,,False,boya,,False,,,True,,,True,Used,,False,,,True
+عايز كاميرا كانون جديدة بأقل من 500 جنيه في المعادي,camera,,False,Canon,,False,Maadi,,False,500.0,,False,New,,False,,,True
+I need a used Dell laptop,laptop,,False,Dell,,False,,,True,,,True,Used,,False,,,True
+دراجة اطفال للبيع,bike,,False,,,True,,,True,,,True,,,True,,,True
+شقة للايجار في الزمالك ب 1000,apartment,,False,,,True,Zamalek,,False,1000.0,,False,,,True,,,True
+سامسونج جلاكسي مستعمل,galaxy,,False,Samsung,,False,,,True,,,True,Used,,False,,,True
+camera lens under 200,lens,,False,,,True,,,True,200.0,,False,,,True,,,True
+عايز فستان سواريه,dress,,False,,,True,,,True,,,True,,,True,,,True
+ps5 controller in dokki,controller,,False,ps5,,False,Dokki,,False,,,True,,,True,,,True
+ارخص حاجة,,,True,,,True,,,True,,,True,,,True,,,True
+اي منتج رخيص,,,True,,,True,,,True,,,True,,,True,,,True
+شاشة lg 4k جديدة,monitor,,False,lg,,False,,,True,,,True,New,,False,,,True
+apple watch used,watch,,False,apple,,False,,,True,,,True,Used,,False,,,True
+موبايل ايفون ب 300 في مدينة نصر,mobile,,False,iphone,,False,Nasr City,,False,300.0,,False,,,True,,,True
+خيمة سفاري ب 150,tent,,False,,,True,,,True,150.0,,False,,,True,,,True
+عربية تويوتا,car,,False,Toyota,,False,,,True,,,True,,,True,,,True
+used rolex watch,watch,,False,rolex,,False,,,True,,,True,Used,,False,,,True
+شقة مفروشة في الاسكندرية,apartment,,False,,,True,Alexandria,,False,,,True,,,True,,,True
+كاميرا سوني,camera,,False,Sony,,False,,,True,,,True,,,True,,,True
+دراجة بي ام اكس,bike,,False,bmx,,False,,,True,,,True,,,True,,,True
+ميكروفون بويا مستعمل,microphone,,False,boya,,False,,,True,,,True,Used,,False,,,True
+عايز كاميرا كانون جديدة بأقل من 500 جنيه في المعادي,camera,,False,Canon,,False,Maadi,,False,500.0,,False,New,,False,,,True
+I need a used Dell laptop,laptop,,False,Dell,,False,,,True,,,True,Used,,False,,,True
+دراجة اطفال للبيع,bike,,False,,,True,,,True,,,True,,,True,,,True
+شقة للايجار في الزمالك ب 1000,apartment,,False,,,True,Zamalek,,False,1000.0,,False,,,True,,,True
+سامسونج جلاكسي مستعمل,galaxy,,False,Samsung,,False,,,True,,,True,Used,,False,,,True
+camera lens under 200,lens,,False,,,True,,,True,200.0,,False,,,True,,,True
+عايز فستان سواريه,dress,,False,,,True,,,True,,,True,,,True,,,True
+ps5 controller in dokki,controller,,False,ps5,,False,Dokki,,False,,,True,,,True,,,True
+ارخص حاجة,,,True,,,True,,,True,,,True,,,True,,,True
+اي منتج رخيص,,,True,,,True,,,True,,,True,,,True,,,True
+شاشة lg 4k جديدة,monitor,,False,lg,,False,,,True,,,True,New,,False,,,True
+apple watch used,watch,,False,apple,,False,,,True,,,True,Used,,False,,,True
+موبايل ايفون ب 300 في مدينة نصر,mobile,,False,iphone,,False,Nasr City,,False,300.0,,False,,,True,,,True
+خيمة سفاري ب 150,tent,,False,,,True,,,True,150.0,,False,,,True,,,True
+عربية تويوتا,car,,False,Toyota,,False,,,True,,,True,,,True,,,True
+used rolex watch,watch,,False,rolex,,False,,,True,,,True,Used,,False,,,True
+شقة مفروشة في الاسكندرية,apartment,,False,,,True,Alexandria,,False,,,True,,,True,,,True
+كاميرا سوني,camera,,False,Sony,,False,,,True,,,True,,,True,,,True
+دراجة بي ام اكس,bike,,False,bmx,,False,,,True,,,True,,,True,,,True
+ميكروفون بويا مستعمل,microphone,,False,boya,,False,,,True,,,True,Used,,False,,,True
