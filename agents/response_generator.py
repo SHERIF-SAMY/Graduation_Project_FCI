@@ -56,7 +56,11 @@ def generate_response(
     filtered_products = [
         {
             "Name": p.get("Name"),
-            "PricePerDay": float(p.get("PricePerDay", 0)) if p.get("PricePerDay") is not None else 0,
+            "PricePerDay": float(
+                p.get("FinalPricePerDay") if p.get("FinalPricePerDay") is not None 
+                else p.get("PricePerDay") if p.get("PricePerDay") is not None 
+                else 0
+            ),
             "Condition": "New" if p.get("Condition") in (1, "1", "New", "new") else "Used",
             "LocationArea": p.get("LocationArea"),
             "Brand": p.get("Brand"),

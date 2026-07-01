@@ -1,18 +1,24 @@
-Extract rental product attributes from the user query.
-The user may write in Arabic or English — handle both languages fluently.
+Extract rental product attributes from the user query, using the conversation history to resolve references (like "it", "that", "سعره", "سعرها", "في منه", "مكانه", "ده", "دي", "نفسه").
 
-Available fields: category, brand, location, max_price, condition (New/Used), name_keyword
+Fields: category, brand, location, max_price, condition (New/Used), name_keyword
 
-IMPORTANT TRANSLATION RULES:
-- Always output field VALUES in English, even if the user wrote in Arabic.
-- Translate Arabic category names to English (e.g. "إلكترونيات" → "Electronics", "أثاث" → "Furniture", "سيارات" → "Cars", "ملابس" → "Clothes", "أدوات" → "Tools", "كاميرات" → "Cameras").
-- Translate Arabic brands phonetically (e.g. "سامسونج" → "Samsung", "آبل" → "Apple", "سوني" → "Sony").
-- Translate Arabic locations to English (e.g. "المعادي" → "Maadi", "مدينة نصر" → "Nasr City", "الزمالك" → "Zamalek", "الدقي" → "Dokki", "الجيزة" → "Giza", "الإسكندرية" → "Alexandria").
-- For condition: "جديد" or "جديدة" → "New"; "مستعمل" or "مستخدم" → "Used".
-- For name_keyword: translate or transliterate the Arabic product name to English (e.g. "لابتوب" → "laptop", "كاميرا" → "camera", "تلفزيون" → "TV", "ثلاجة" → "refrigerator", "غسالة" → "washing machine", "موبايل" → "mobile").
+CRITICAL RULES:
+1. CONTEXT RESOLUTION: If the user query is a follow-up asking for details (e.g., "سعره كام؟", "هو فين؟", "في منه جديد؟", "how much is it?", "where is it?"), the pronoun refers to the product in the LAST assistant message. Identify that product (name_keyword, brand) and carry them over to the output JSON. For example, if the last AI turn mentions a "Canon camera", resolve "سعرها كام؟" to name_keyword "camera" and brand "Canon".
+2. NO ASSISTANT FILTER BLEED: Do NOT extract filters like location, condition, or max_price from the assistant's previous responses. Only set location, condition, or max_price if the user explicitly specified them in their queries.
+3. Keep location, category, brand, max_price, and condition as null if they cannot be resolved/carried over.
+4. Ignore Arabic query words like "على", "بنور", "عايز", "بدور", "محتاج" — they are not values.
+
+Translation rules (output values in English):
+- Product names/keywords: ALWAYS translate Arabic product names to English. Examples: "لابتوب" → "laptop", "كاميرا" → "camera", "عجلة"/"دراجة" → "bike", "فستان"/"دريس" → "dress", "حجاب"/"طرحة"/"طرحه" → "hejab", "تيشرت" → "t-shirt", "موبايل" → "mobile", "طابعة" → "printer", "سماعة" → "headphone", "تلفزيون" → "TV", "طوق"/"طوق برايد" → "necklace", "مروحة"/"مروحة ورقية" → "fan"
+- Always use SINGULAR form for name_keyword: "laptops" → "laptop", "cameras" → "camera"
+- Ignore generic names. If the user asks for "منتجات" (products), "حاجة" (thing), "اي حاجة" (anything), or just "ارخص حاجة" (cheapest thing), set name_keyword to null.
+- Locations: "المعادي" → "Maadi", "مدينة نصر" → "Nasr City", "الزمالك" → "Zamalek", "الدقي" → "Dokki", "الإسكندرية" → "Alexandria", "هليوبوليس" → "Heliopolis". For any other location (e.g. "كفر الشيخ", "طنطا"), KEEP it in Arabic.
+- Categories: Map to the exact Arabic names in DB: ["أثاث", "الالعاب", "الكترونيات", "معدات", "ملابس", "منتجات رياضيه"]. Example: "هدوم"/"clothes" → "ملابس", "أجهزة"/"electronics" → "الكترونيات", "لعب" → "الالعاب".
+- Condition: "جديد"/"جديدة"/"new" → "New"; "مستعمل"/"مستخدم"/"used" → "Used"
+- Do NOT set category when you have a name_keyword — set category to null.
 
 User message: "{user_query}"
 
-Respond with ONLY a JSON object with the extracted fields.
-If a field is not mentioned, set it to null.
-Example: {{"category": "Electronics", "brand": null, "location": "Maadi", "max_price": 100, "condition": "New", "name_keyword": "laptop"}}
+Reply with ONLY a valid JSON object. No explanation.
+If a field is not mentioned or implied from history, set it to null.
+Example: {{"category": null, "brand": null, "location": null, "max_price": null, "condition": null, "name_keyword": "laptop"}}

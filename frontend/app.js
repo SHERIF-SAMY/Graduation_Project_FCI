@@ -1,9 +1,18 @@
-const API_BASE = 'http://127.0.0.1:8000';
+const API_BASE = 'https://remunerative-alita-nonfluent.ngrok-free.dev';
 
-// ─── Generate unique session ID per browser session ───
-const SESSION_ID = sessionStorage.getItem('nexon_session_id') || (() => {
+// ─── Ngrok-aware fetch wrapper ───
+async function apiFetch(url, options = {}) {
+  const headers = {
+    'ngrok-skip-browser-warning': 'true',
+    ...(options.headers || {})
+  };
+  return fetch(url, { ...options, headers });
+}
+
+// ─── Generate unique session ID per browser (localStorage so it persists across tabs/restarts) ───
+const SESSION_ID = localStorage.getItem('nexon_session_id') || (() => {
   const id = 'sess_' + Math.random().toString(36).slice(2, 11) + Date.now().toString(36);
-  sessionStorage.setItem('nexon_session_id', id);
+  localStorage.setItem('nexon_session_id', id);
   return id;
 })();
 
@@ -30,19 +39,126 @@ function getProductIcon(category, name) {
 let isLoading = false;
 let currentCategory = null;
 
+// ─── Auth State ───
+let AUTH_TOKEN = localStorage.getItem('nexon_auth_token') || null;
+let USER_ID    = localStorage.getItem('nexon_user_id')    || null;
+let USER_NAME  = localStorage.getItem('nexon_user_name')  || null;
+
+// Validate stored USER_ID: if it's empty string or obviously not a GUID, clear it
+// This handles the case where a user logged in before the userId-extraction fix.
+if (AUTH_TOKEN && (!USER_ID || USER_ID.trim() === '')) {
+  console.warn('[Nexon] Stored USER_ID is invalid — trying to extract from saved token...');
+  try {
+    const payload = JSON.parse(atob(AUTH_TOKEN.split('.')[1]));
+    USER_ID =
+      payload.sub ||
+      payload.nameid ||
+      payload.nameidentifier ||
+      payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ||
+      null;
+    if (USER_ID) {
+      localStorage.setItem('nexon_user_id', USER_ID);
+      console.log('[Nexon] Recovered USER_ID from token:', USER_ID);
+    } else {
+      // Cannot recover — force re-login
+      console.warn('[Nexon] Cannot recover USER_ID. Clearing session to force re-login.');
+      AUTH_TOKEN = null;
+      USER_ID    = null;
+      USER_NAME  = null;
+      localStorage.removeItem('nexon_auth_token');
+      localStorage.removeItem('nexon_user_id');
+      localStorage.removeItem('nexon_user_name');
+    }
+  } catch {
+    // Token is malformed — clear everything
+    AUTH_TOKEN = null; USER_ID = null; USER_NAME = null;
+    ['nexon_auth_token', 'nexon_user_id', 'nexon_user_name'].forEach(k => localStorage.removeItem(k));
+  }
+}
+
 // ─── Init ───
 document.addEventListener('DOMContentLoaded', () => {
   checkHealth();
   loadCategories();
   document.getElementById('chat-input').focus();
+  fetchRecommendations(); // Fetch initially for Discover view
+  updateAuthUI();
+  loadChatHistory();     // Restore previous chat session
 });
+
+
+// ─── Tab Switching ───
+function switchTab(tabId) {
+  // Update buttons
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+
+  // Update views
+  document.querySelectorAll('.view').forEach(view => view.classList.remove('active'));
+  document.getElementById(`${tabId}-view`).classList.add('active');
+
+  if (tabId === 'chat') {
+    document.getElementById('chat-input').focus();
+  } else if (tabId === 'discover') {
+    fetchRecommendations();
+  }
+}
+
+// ─── Recommendations ───
+async function fetchRecommendations() {
+  const grid = document.getElementById('recommendations-grid');
+  const metadata = document.getElementById('rec-metadata');
+  const explanation = document.getElementById('rec-explanation');
+
+  grid.innerHTML = '<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text3);">Loading recommendations...</div>';
+
+  try {
+    const res = await apiFetch(`${API_BASE}/recommendations?session_id=${SESSION_ID}&limit=6`);
+    if (!res.ok) throw new Error('Failed to fetch recommendations');
+    const data = await res.json();
+
+    // Update Metadata Badge
+    const isCold = data.recommendation_type === 'cold_start';
+    const confScore = Math.round(data.user_profile.profile_confidence * 100);
+    metadata.innerHTML = `
+      <span class="rec-badge ${isCold ? 'cold' : ''}">
+        ${isCold ? 'Trending & Newest' : 'Personalized'}
+      </span>
+      <span style="font-size: 11px; color: var(--text3);">Confidence: ${confScore}%</span>
+      <span style="font-size: 11px; color: var(--text3); margin-left: auto;">${data.latency_ms}ms</span>
+    `;
+
+    // Update Explanation
+    if (data.explanation) {
+      explanation.style.display = 'block';
+      explanation.innerHTML = escapeHtml(data.explanation);
+    } else {
+      explanation.style.display = 'none';
+    }
+
+    // Render Products
+    if (data.products && data.products.length > 0) {
+      grid.innerHTML = data.products.map((p, i) => {
+        // Find matching debug info if available
+        const debugInfo = data.debug ? data.debug.find(d => d.id === p.id) : null;
+        return productCard(p, debugInfo);
+      }).join('');
+    } else {
+      grid.innerHTML = '<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--text3);">No recommendations available yet.</div>';
+    }
+
+  } catch (err) {
+    console.error(err);
+    grid.innerHTML = '<div style="grid-column: 1/-1; padding: 40px; text-align: center; color: var(--red);">Failed to load recommendations. Make sure backend is running.</div>';
+  }
+}
 
 // ─── Health check ───
 async function checkHealth() {
   const dot = document.getElementById('health-dot');
   const text = document.getElementById('health-text');
   try {
-    const res = await fetch(`${API_BASE}/health`);
+    const res = await apiFetch(`${API_BASE}/health`);
     const data = await res.json();
     if (data.db === 'ok') {
       dot.className = 'health-dot ok';
@@ -63,7 +179,7 @@ async function checkHealth() {
 async function loadCategories() {
   const list = document.getElementById('categories-list');
   try {
-    const res = await fetch(`${API_BASE}/categories`);
+    const res = await apiFetch(`${API_BASE}/categories`);
     const data = await res.json();
     const cats = data.categories || [];
 
@@ -131,10 +247,15 @@ async function sendMessage() {
   setLoading(true);
 
   try {
-    const res = await fetch(`${API_BASE}/chat`, {
+    const res = await apiFetch(`${API_BASE}/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, session_id: SESSION_ID })   // ← send session_id
+      body: JSON.stringify({
+        query,
+        session_id: SESSION_ID,
+        user_id: USER_ID,
+        auth_token: AUTH_TOKEN
+      })
     });
 
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -195,10 +316,18 @@ function appendAIMessage(data) {
 
   list.appendChild(div);
   scrollToBottom();
+
+  // Auto-logout if the bot reports a session/token expiry
+  const answer = data.answer || '';
+  const isExpired = answer.includes('session has expired') || answer.includes('انتهت جلستك');
+  if (isExpired && AUTH_TOKEN) {
+    logout();
+    setTimeout(() => document.getElementById('login-modal').classList.add('active'), 800);
+  }
 }
 
 // ─── Product card HTML ───
-function productCard(p) {
+function productCard(p, debugInfo = null) {
   const icon = getProductIcon(p.category, p.name);
   const condTag = p.condition === 'New'
     ? '<span class="product-tag tag-new">✨ New</span>'
@@ -207,13 +336,26 @@ function productCard(p) {
   const gTagHtml = p.rental_guarantee ? '<span class="product-tag tag-guarantee">🛡️ Guaranteed</span>' : '';
 
   const imgHtml = p.image_url
-    ? `<img class="product-img" src="${API_BASE}${p.image_url}" alt="${escapeHtml(p.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+    ? `<img class="product-img" src="${p.image_url}" alt="${escapeHtml(p.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
        <span class="product-icon product-icon-fallback" style="display:none">${icon}</span>`
-    : `<span class="product-icon">${icon}</span>`;
+    : `<span class="product-icon product-icon-fallback">${icon}</span>`;
+
+  let debugHtml = '';
+  if (debugInfo) {
+    debugHtml = `
+      <div class="debug-overlay">
+        <div>Score: <span>${debugInfo.score.toFixed(1)}</span></div>
+        <div>Src: <span>${debugInfo.source}</span></div>
+      </div>
+    `;
+  }
 
   return `
     <div class="product-card" onclick="viewProduct(${p.id})">
-      <div class="product-img-wrap">${imgHtml}</div>
+      <div class="product-img-wrap">
+        ${imgHtml}
+        ${debugHtml}
+      </div>
       <div class="product-name" title="${p.name}">${p.name}</div>
       <div class="product-brand">${p.brand || p.category || ''}</div>
       <div class="product-price">${parseFloat(p.price_per_day).toFixed(0)} EGP <span>/ day</span></div>
@@ -226,14 +368,14 @@ function productCard(p) {
 // ─── View single product ───
 async function viewProduct(id) {
   try {
-    const res = await fetch(`${API_BASE}/products/${id}`);
+    const res = await apiFetch(`${API_BASE}/products/${id}`);
     if (!res.ok) throw new Error('Product not found');
     const p = await res.json();
     const icon = getProductIcon(p.category, p.name);
     const modal = document.getElementById('search-modal');
 
     const heroHtml = p.image_url
-      ? `<img src="${API_BASE}${p.image_url}" alt="${escapeHtml(p.name)}"
+      ? `<img src="${p.image_url}" alt="${escapeHtml(p.name)}"
               style="width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin-bottom:16px;"
               onerror="this.style.display='none';this.nextElementSibling.style.display='block'" />
          <div style="display:none;font-size:56px;margin-bottom:16px;text-align:center;">${icon}</div>`
@@ -287,7 +429,7 @@ async function fetchLiveSearch(val) {
   dd.classList.add('open');
 
   try {
-    const res = await fetch(`${API_BASE}/search/live?q=${encodeURIComponent(val.trim())}`);
+    const res = await apiFetch(`${API_BASE}/search/live?q=${encodeURIComponent(val.trim())}`);
     const data = await res.json();
     renderLiveDropdown(data.products || []);
   } catch {
@@ -361,7 +503,7 @@ async function quickSearch() {
   if (condition) body.condition = condition;
 
   try {
-    const res = await fetch(`${API_BASE}/search`, {
+    const res = await apiFetch(`${API_BASE}/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -427,11 +569,43 @@ function escapeHtml(text) {
   return (text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
 }
 
+// ─── Load & restore previous chat history from backend ───
+async function loadChatHistory() {
+  try {
+    const url = USER_ID
+      ? `${API_BASE}/chat/history/${SESSION_ID}?user_id=${encodeURIComponent(USER_ID)}`
+      : `${API_BASE}/chat/history/${SESSION_ID}`;
+    const res = await apiFetch(url);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.history || data.history.length === 0) return;
+
+    // Hide welcome screen since we have history
+    document.getElementById('welcome-screen').style.display = 'none';
+
+    // Replay each turn as if it just happened
+    for (const turn of data.history) {
+      appendMessage('user', turn.user);
+      appendAIMessage(turn.response);
+    }
+  } catch (err) {
+    console.warn('[Nexon] Could not load chat history:', err);
+  }
+}
+
 function clearChat() {
+  // Clear UI
   document.getElementById('messages-list').innerHTML = '';
   document.getElementById('welcome-screen').style.display = '';
   document.querySelectorAll('.category-item').forEach(el => el.classList.remove('active'));
   currentCategory = null;
+
+  // Clear backend session too
+  apiFetch(`${API_BASE}/chat/clear`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: SESSION_ID })
+  }).catch(err => console.warn('[Nexon] Could not clear backend session:', err));
 }
 
 function toggleSidebar() {
@@ -439,7 +613,134 @@ function toggleSidebar() {
 }
 
 function closeModal(e) {
-  if (e.target.id === 'search-modal') {
+  if (e.target.id === 'search-modal' || e.target.id === 'login-modal') {
     e.target.classList.remove('active');
   }
+}
+
+// ─── Auth Helpers ───
+function updateAuthUI() {
+  const container = document.getElementById('auth-container');
+  if (!container) return;
+  if (AUTH_TOKEN) {
+    container.innerHTML = `
+      <span class="model-badge" style="background: var(--surface2); color: var(--text); border: 1px solid var(--border);">
+        👤 ${escapeHtml(USER_NAME || 'User')}
+      </span>
+      <button onclick="logout()" style="background:none; border:none; color:var(--red); cursor:pointer; font-size:12px; margin-left:8px; font-weight:600;">
+        Logout
+      </button>
+    `;
+  } else {
+    container.innerHTML = `
+      <button class="tab-btn" onclick="document.getElementById('login-modal').classList.add('active')" style="padding: 6px 14px; background: linear-gradient(135deg, var(--surface), var(--surface2)); border: 1px solid var(--border);">
+        Login / Signup
+      </button>
+    `;
+  }
+}
+
+async function submitLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorEl = document.getElementById('login-error');
+  const btn = document.getElementById('login-submit-btn');
+
+  if (!email || !password) {
+    errorEl.textContent = 'Please enter both email and password.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  errorEl.style.display = 'none';
+  btn.disabled = true;
+  btn.innerHTML = 'Logging in...';
+
+  try {
+    const res = await apiFetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+
+    if (!res.ok) throw new Error(data.message || `Login failed with status ${res.status}`);
+
+    // The endpoint returns { token: { token, userId, fullName, ... } }
+    // .NET JWT claims can appear under many different key names depending on
+    // the ASP.NET version and IdentityServer config, so we try all known variants.
+    if (data && data.token) {
+      AUTH_TOKEN = data.token.token;
+
+      // --- Extract userId robustly (order of priority) ---
+      USER_ID =
+        data.token.userId            ||   // custom field (some backends)
+        data.token.UserId            ||   // PascalCase variant
+        data.token.id                ||   // short form
+        data.token.sub               ||   // standard JWT "subject"
+        data.token.nameid            ||   // short claim alias
+        data.token.nameidentifier    ||   // another common alias
+        // Full .NET claim URI (sometimes returned as-is in response body)
+        data.token['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ||
+        null;
+
+      // Last resort: decode the JWT payload ourselves to extract the sub/nameidentifier
+      if (!USER_ID && AUTH_TOKEN) {
+        try {
+          const payload = JSON.parse(atob(AUTH_TOKEN.split('.')[1]));
+          USER_ID =
+            payload.sub  ||
+            payload.nameid ||
+            payload.nameidentifier ||
+            payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] ||
+            null;
+          console.log('[Nexon] JWT payload keys:', Object.keys(payload));
+        } catch (jwtErr) {
+          console.warn('[Nexon] Could not decode JWT payload:', jwtErr);
+        }
+      }
+
+      USER_NAME = data.token.fullName || data.token.FullName || email.split('@')[0];
+
+      // Debug — remove in production
+      console.log('[Nexon] Login success | USER_ID:', USER_ID, '| USER_NAME:', USER_NAME);
+      if (!USER_ID) {
+        console.warn('[Nexon] ⚠️ USER_ID is empty! token keys:', Object.keys(data.token));
+      }
+    } else {
+      throw new Error('Unexpected response format from server.');
+    }
+
+
+    localStorage.setItem('nexon_auth_token', AUTH_TOKEN);
+    localStorage.setItem('nexon_user_id', USER_ID);
+    localStorage.setItem('nexon_user_name', USER_NAME);
+
+    document.getElementById('login-modal').classList.remove('active');
+    updateAuthUI();
+    document.getElementById('login-email').value = '';
+    document.getElementById('login-password').value = '';
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = 'Login';
+  }
+}
+
+function logout() {
+  AUTH_TOKEN = null;
+  USER_ID = null;
+  USER_NAME = null;
+  localStorage.removeItem('nexon_auth_token');
+  localStorage.removeItem('nexon_user_id');
+  localStorage.removeItem('nexon_user_name');
+  updateAuthUI();
 }

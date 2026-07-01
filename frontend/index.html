@@ -1,12 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>RentHub AI — Rental Assistant</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=2" />
 </head>
+
 <body>
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
@@ -39,16 +41,13 @@
       <p class="section-label">Search</p>
       <div class="live-search-wrapper" id="live-search-wrapper">
         <div class="live-search-bar">
-          <svg class="live-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input
-            type="text"
-            id="live-search-input"
-            class="live-search-input"
-            placeholder="Search products..."
-            autocomplete="off"
-            oninput="onLiveSearch(this.value)"
-            onfocus="onLiveSearchFocus()"
-          />
+          <svg class="live-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.5">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
+          </svg>
+          <input type="text" id="live-search-input" class="live-search-input" placeholder="Search products..."
+            autocomplete="off" oninput="onLiveSearch(this.value)" onfocus="onLiveSearchFocus()" />
           <span class="live-search-clear" id="live-search-clear" onclick="clearLiveSearch()">✕</span>
         </div>
         <div class="live-search-dropdown" id="live-search-dropdown"></div>
@@ -68,7 +67,10 @@
           <option value="Used">Used</option>
         </select>
         <button class="qs-btn" id="qs-btn" onclick="quickSearch()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="11" cy="11" r="8" />
+            <path d="m21 21-4.35-4.35" />
+          </svg>
           Search
         </button>
       </div>
@@ -76,7 +78,12 @@
 
     <div class="sidebar-footer">
       <button class="clear-btn" onclick="clearChat()">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6" />
+          <path d="M19 6l-1 14H6L5 6" />
+          <path d="M10 11v6" />
+          <path d="M14 11v6" />
+        </svg>
         Clear Chat
       </button>
     </div>
@@ -85,68 +92,144 @@
   <!-- Main Content -->
   <main class="main">
     <header class="topbar">
-      <button class="menu-btn" id="menu-btn" onclick="toggleSidebar()">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
-      </button>
-      <div class="topbar-title">
-        <h1>Rental AI Assistant</h1>
-        <p>Ask me anything about available products</p>
+      <div class="topbar-left">
+        <button class="menu-btn" id="menu-btn" onclick="toggleSidebar()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6" />
+            <line x1="3" y1="12" x2="21" y2="12" />
+            <line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+        <div class="topbar-title">
+          <h1>Nexon AI</h1>
+        </div>
       </div>
-      <div class="topbar-badges">
-        <span class="model-badge">llama-3.3-70b</span>
-        <span class="model-badge secondary">Groq</span>
+
+      <div class="topbar-tabs">
+        <button class="tab-btn active" onclick="switchTab('discover')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polygon
+              points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+          </svg>
+          Discover
+        </button>
+        <button class="tab-btn" onclick="switchTab('chat')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          Assistant
+        </button>
+      </div>
+
+      <div class="topbar-badges" id="auth-container">
+        <!-- populated by app.js -->
       </div>
     </header>
 
-    <!-- Chat Area -->
-    <div class="chat-area" id="chat-area">
-      <div class="welcome-screen" id="welcome-screen">
-        <div class="welcome-icon">🏪</div>
-        <h2>Welcome to Nexon AI</h2>
-        <p>Your intelligent rental marketplace assistant. Ask about products, prices, locations, and more.</p>
-        <div class="suggestion-chips">
-          <button class="chip" onclick="sendSuggestion('Show me laptops in Nasr City')">💻 Laptops in Nasr City</button>
-          <button class="chip" onclick="sendSuggestion('I need a camera under 200 EGP per day')">📷 Cameras under 200 EGP</button>
-          <button class="chip" onclick="sendSuggestion('What gaming equipment do you have?')">🎮 Gaming Equipment</button>
-          <button class="chip" onclick="sendSuggestion('New Sony products available')">🎯 New Sony Products</button>
-        </div>
-      </div>
-      <div class="messages-list" id="messages-list"></div>
-    </div>
+    <!-- Content Views -->
+    <div class="views-container">
 
-    <!-- Input Area -->
-    <div class="input-area">
-      <div class="input-wrapper">
-        <div class="input-box">
-          <textarea
-            id="chat-input"
-            placeholder="Ask about products, categories, prices..."
-            rows="1"
-            onkeydown="handleKey(event)"
-            oninput="autoResize(this)"
-          ></textarea>
-          <button class="send-btn" id="send-btn" onclick="sendMessage()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-          </button>
+      <!-- Discover View -->
+      <div class="view active" id="discover-view">
+        <div class="discover-header">
+          <h2 class="gradient-text">Recommended for You</h2>
+          <div id="rec-metadata" class="rec-metadata">
+            <span class="rec-badge">Loading...</span>
+          </div>
+          <p id="rec-explanation" class="rec-explanation">Analyzing your preferences...</p>
         </div>
-        <p class="input-hint">Press <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for new line</p>
+        <div class="products-grid" id="recommendations-grid">
+          <!-- Populated dynamically -->
+        </div>
       </div>
-    </div>
+
+      <!-- Chat View -->
+      <div class="view" id="chat-view">
+        <div class="chat-area" id="chat-area">
+          <div class="welcome-screen" id="welcome-screen">
+            <div class="welcome-icon">🏪</div>
+            <h2>Welcome to Nexon AI</h2>
+            <p>Your intelligent rental marketplace assistant. Ask about products, prices, locations, and more.</p>
+            <div class="suggestion-chips">
+              <button class="chip" onclick="sendSuggestion('Show me laptops in Nasr City')">💻 Laptops in Nasr
+                City</button>
+              <button class="chip" onclick="sendSuggestion('I need a camera under 200 EGP per day')">📷 Cameras under
+                200 EGP</button>
+              <button class="chip" onclick="sendSuggestion('What gaming equipment do you have?')">🎮 Gaming
+                Equipment</button>
+              <button class="chip" onclick="sendSuggestion('New Sony products available')">🎯 New Sony Products</button>
+            </div>
+          </div>
+          <div class="messages-list" id="messages-list"></div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+          <div class="input-wrapper">
+            <div class="input-box">
+              <textarea id="chat-input" placeholder="Ask about products, categories, prices..." rows="1"
+                onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+              <button class="send-btn" id="send-btn" onclick="sendMessage()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            </div>
+            <p class="input-hint">Press <kbd>Enter</kbd> to send · <kbd>Shift+Enter</kbd> for new line</p>
+          </div>
+        </div>
+
+      </div> <!-- End Views Container -->
   </main>
 
-  <!-- Search Results Modal -->
   <div class="modal-overlay" id="search-modal" onclick="closeModal(event)">
     <div class="modal">
       <div class="modal-header">
         <h3>Search Results</h3>
         <button onclick="document.getElementById('search-modal').classList.remove('active')">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
       </div>
       <div class="modal-body" id="search-results"></div>
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <!-- Login Modal -->
+  <div class="modal-overlay" id="login-modal" onclick="closeModal(event)">
+    <div class="modal" style="max-width: 400px;">
+      <div class="modal-header">
+        <h3>Login</h3>
+        <button onclick="document.getElementById('login-modal').classList.remove('active')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      </div>
+      <div class="modal-body" style="padding: 24px;">
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <div>
+            <label style="display: block; font-size: 12px; color: var(--text2); margin-bottom: 6px;">Email</label>
+            <input type="email" id="login-email" class="qs-input" placeholder="Enter your email" />
+          </div>
+          <div>
+            <label style="display: block; font-size: 12px; color: var(--text2); margin-bottom: 6px;">Password</label>
+            <input type="password" id="login-password" class="qs-input" placeholder="Enter your password" />
+          </div>
+          <div id="login-error" style="color: var(--red); font-size: 12px; display: none;"></div>
+          <button class="qs-btn" id="login-submit-btn" onclick="submitLogin()" style="margin-top: 8px;">
+            Login
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js?v=2"></script>
 </body>
+
 </html>

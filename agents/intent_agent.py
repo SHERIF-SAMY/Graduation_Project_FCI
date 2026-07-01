@@ -30,10 +30,13 @@ _chain = (
 )
 
 
-def classify_intent(query: str) -> dict:
+def classify_intent(query: str, booking_state: str = "IDLE") -> dict:
     """Classifies user intent using llama3-8b-8192 via LangChain."""
     try:
-        result = _chain.invoke({"user_query": query})
+        result = _chain.invoke({
+            "user_query": query,
+            "booking_state": booking_state
+        })
         return result if isinstance(result, dict) else {"intent": "search", "confidence": 0.5}
     except Exception as e:
         print(f"[IntentAgent] Error: {e}")

@@ -13,6 +13,13 @@ class Product(BaseModel):
     status: str
     image_url: Optional[str] = None
 
+class BookingAction(BaseModel):
+    state: str
+    order_id: Optional[int] = None
+    requires_input: Optional[str] = None  # "dates" | "delivery" | "address" | "confirmation"
+    summary: Optional[dict] = None
+    orders: Optional[List[str]] = None
+
 class ChatResponse(BaseModel):
     answer: str
     intent: str
@@ -20,6 +27,7 @@ class ChatResponse(BaseModel):
     total_found: int
     latency_ms: int
     cached: bool
+    booking_action: Optional[BookingAction] = None
 
 class SearchResponse(BaseModel):
     products: List[Product]

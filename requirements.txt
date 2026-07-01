@@ -10,4 +10,5 @@ langchain
 langchain-groq
 langchain-community
 langchain-core
+httpx
 

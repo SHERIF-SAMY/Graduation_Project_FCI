@@ -1,0 +1,111 @@
+query,expected,predicted,confidence,correct
+عايز كاميرا,search,search,1.0,True
+I need a laptop,search,search,1.0,True
+في دراجات عندكم؟,search,search,1.0,True
+بنور على لابتوب,search,search,1.0,True
+ايه المنتجات المتاحة عندكم؟,search,search,1.0,True
+ايه المتاح؟,search,search,1.0,True
+ارخص حاجة عندكم,search,search,1.0,True
+looking for a camera,search,search,1.0,True
+do you have bikes?,search,search,1.0,True
+عايز شقة للايجار,search,search,1.0,True
+محتاج فستان فرح,search,search,1.0,True
+I want to rent a car,search,search,1.0,True
+show me available monitors,search,search,1.0,True
+عندك سماعات؟,search,search,1.0,True
+كاميرات ديجيتال,search,search,1.0,True
+كاميرا بأقل من 200 جنيه في المعادي,filter,filter,1.0,True
+laptop under 500,filter,search,1.0,False
+عجلة جديدة ب 100,filter,search,1.0,False
+used bikes in cairo,filter,search,1.0,False
+شقة في الرحاب,filter,search,1.0,False
+إيه أحسن كاميرا عندكم؟,recommend,recommend,1.0,True
+what do you recommend for gaming?,recommend,recommend,1.0,True
+انصحني بلابتوب للبرمجة,recommend,recommend,1.0,True
+أفضل عجلة للاطفال,recommend,search,1.0,False
+best camera for beginners,recommend,search,1.0,False
+تقدر تساعدني إزاي؟,question,question,1.0,True
+إيه دورك؟,question,question,1.0,True
+إيه الفيتشرز اللي بتعملها؟,question,question,1.0,True
+what can you do?,question,question,1.0,True
+how can you help me?,question,question,1.0,True
+مين انت؟,question,platform_question,1.0,False
+are you a bot?,question,question,1.0,True
+بتعرف تعمل ايه,question,question,1.0,True
+what are your capabilities?,question,question,1.0,True
+كيف تستطيع مساعدتي,question,question,1.0,True
+إيه هي Rental Hub؟,platform_question,platform_question,1.0,True
+إزاي أبدأ أستخدم المنصة؟,platform_question,platform_question,1.0,True
+إزاي أسحب فلوسي؟,platform_question,platform_question,1.0,True
+هل أقدر أعرض منتجاتي للتأجير؟,platform_question,platform_question,1.0,True
+إزاي المنصة بتحافظ على حقوق المؤجر والمستأجر؟,platform_question,platform_question,1.0,True
+ازاي ممكن اجر علي المنصه,platform_question,platform_question,1.0,True
+how do I charge my wallet?,platform_question,platform_question,1.0,True
+is it safe to rent here?,platform_question,platform_question,1.0,True
+كيف اضيف منتج,platform_question,platform_question,1.0,True
+what is rental hub,platform_question,platform_question,1.0,True
+كيفية الدفع,platform_question,platform_question,1.0,True
+سالم عليكم,greet,greet,1.0,True
+أهلاً,greet,greet,1.0,True
+hello,greet,greet,1.0,True
+hi,greet,greet,1.0,True
+صباح الخير,greet,greet,1.0,True
+good morning,greet,greet,1.0,True
+مرحبا,greet,greet,1.0,True
+hey there,greet,greet,1.0,True
+مساء الخير,greet,greet,1.0,True
+هلا,greet,greet,1.0,True
+اجّرهولي,book_initiate,book_initiate,1.0,True
+حجّزه ليا,book_initiate,book_initiate,1.0,True
+rent this for me,book_initiate,book_initiate,1.0,True
+خد الطلب,book_initiate,book_initiate,1.0,True
+أجّره,book_initiate,book_initiate,1.0,True
+I want to book it,book_initiate,book_initiate,1.0,True
+book this,book_initiate,book_initiate,1.0,True
+يلا نحجز,book_initiate,book_initiate,1.0,True
+احجز,book_initiate,book_initiate,1.0,True
+تمام احجزه,book_initiate,search,0.0,False
+I'd like to rent it,book_initiate,search,0.0,False
+اعمل اوردر,book_initiate,search,0.0,False
+من 25 يونيو لـ 30 يونيو,book_continue,search,0.0,False
+delivery please,book_continue,search,0.0,False
+المعادي شارع النصر,book_continue,search,0.0,False
+from tomorrow to sunday,book_continue,search,0.0,False
+توصيل,book_continue,search,0.0,False
+pickup,book_continue,search,0.0,False
+استلام,book_continue,search,0.0,False
+cairo,book_continue,search,0.0,False
+شارع 10,book_continue,search,0.0,False
+for 3 days,book_continue,search,0.0,False
+من يوم الاحد للخميس,book_continue,search,0.0,False
+هستلمه بنفسي,book_continue,search,0.0,False
+أيوه,book_confirm,search,0.0,False
+yes,book_confirm,search,0.0,False
+تمام,book_confirm,search,0.0,False
+موافق,book_confirm,search,0.0,False
+confirm,book_confirm,search,0.0,False
+أيوة الغيه,book_confirm,search,0.0,False
+sure,book_confirm,search,0.0,False
+ok,book_confirm,search,0.0,False
+يالا بينا,book_confirm,search,0.0,False
+yes please,book_confirm,search,0.0,False
+لأ,book_cancel,search,0.0,False
+no,book_cancel,search,0.0,False
+cancel,book_cancel,search,0.0,False
+مش عايز,book_cancel,search,0.0,False
+إلغاء,book_cancel,search,0.0,False
+لا متلغيش,book_cancel,search,0.0,False
+stop,book_cancel,search,0.0,False
+I changed my mind,book_cancel,search,0.0,False
+بلاش,book_cancel,search,0.0,False
+لا شكرا,book_cancel,search,0.0,False
+عايز أشوف طلباتي,view_orders,search,0.0,False
+إيه الأوردرات اللي حجزتها؟,view_orders,search,0.0,False
+عرض حجوزاتي الحالية,view_orders,search,0.0,False
+what orders did I rent?,view_orders,search,0.0,False
+my bookings,view_orders,search,0.0,False
+طلباتي,view_orders,search,0.0,False
+show my orders,view_orders,search,0.0,False
+حجوزاتي,view_orders,search,0.0,False
+الاوردرات بتاعتي,view_orders,search,0.0,False
+list my orders,view_orders,search,0.0,False

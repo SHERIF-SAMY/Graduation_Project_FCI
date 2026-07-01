@@ -1,5 +1,6 @@
 import os
 from sqlalchemy import create_engine, URL
+from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -40,3 +41,17 @@ def get_engine():
             "Database not configured. Please set DB_SERVER, DB_NAME, DB_USER, DB_PASS in .env"
         )
     return engine
+
+Base = declarative_base()
+
+# Write-capable session factory (used only by interaction_logger)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine) if engine else None
+
+def get_session():
+    if SessionLocal is None:
+        raise ValueError("DB not configured")
+    s = SessionLocal()
+    try:
+        yield s
+    finally:
+        s.close()
