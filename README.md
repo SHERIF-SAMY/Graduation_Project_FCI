@@ -1,4 +1,4 @@
-# 🏪 Nexon AI — Intelligent Rental Marketplace Assistant
+# 🏪 RentalHub — Intelligent Rental Marketplace Assistant
 
 <div align="center">
 
