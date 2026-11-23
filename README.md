@@ -633,12 +633,27 @@ The system maintains **per-session state** for both conversation history and boo
 | Greeting / general question | < 1s (DB skipped) |
 
 **Optimizations applied:**
-- `RunnableParallel` — Intent + Entity extracted simultaneously
+- `asyncio.gather` + `ainvoke` — Intent + Entity extracted concurrently without blocking the event loop (load test: `benchmarks/README.md`)
 - `pool_size=5` — SQLAlchemy connection pool pre-warmed
 - In-memory MD5-keyed TTL cache (5 min) — **bypassed** for booking/cancel flows
 - Only Top 5 results sent to Groq (not all DB rows)
 - DB query entirely skipped for non-search intents (greet/question)
 - Booking responses never cached (stateful per session)
+
+## 🧪 Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest tests -v
+```
+
+`tests/test_chat_api.py` covers `POST /chat` with Groq, the database and the interaction logger replaced by fakes (no API key or DB needed, ~8 s):
+
+| Test | Checks |
+|---|---|
+| `test_chat_without_query_returns_422` | Validation rejects a request without `query` before any LLM or DB call |
+| `test_chat_search_returns_products_and_answer` | A `search` intent queries the DB, ranks the rows and returns them with the generated answer |
+| `test_concurrent_chats_do_not_block_each_other` | 5 simultaneous requests finish in ~0.9 s (one request's time). If a blocking call is put back in the request path they take ~5 s and the test fails (check: `SIMULATE_BLOCKING=1`) |
 
 ---
 
