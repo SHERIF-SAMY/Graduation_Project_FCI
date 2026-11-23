@@ -2,7 +2,7 @@ import os
 from datetime import date
 from pathlib import Path
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
+from agents.llm_config import FAST_MODEL, make_llm
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import JsonOutputParser
 
@@ -11,11 +11,7 @@ load_dotenv()
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
 # Fast model for entity extraction
-_llm = ChatGroq(
-    model="llama-3.1-8b-instant",
-    temperature=0,
-    api_key=os.environ.get("GROQ_API_KEY"),
-)
+_llm = make_llm(FAST_MODEL)
 
 # Load prompt from file
 _prompt_text = (PROMPTS_DIR / "booking_entity_prompt.txt").read_text(encoding="utf-8")
@@ -46,6 +42,20 @@ def extract_booking_entities(query: str, chat_history: list = None) -> dict:
         result = _chain.invoke({
             "user_query": query,
             "today": today_str,
+            "chat_history": chat_history or [],
+        })
+        return result if isinstance(result, dict) else {}
+    except Exception as e:
+        print(f"[BookingEntityExtractor] Error: {e}")
+        return {}
+
+
+async def aextract_booking_entities(query: str, chat_history: list = None) -> dict:
+    """Async version for the booking flow: frees the event loop while Groq answers."""
+    try:
+        result = await _chain.ainvoke({
+            "user_query": query,
+            "today": date.today().isoformat(),
             "chat_history": chat_history or [],
         })
         return result if isinstance(result, dict) else {}

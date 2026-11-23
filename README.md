@@ -348,9 +348,9 @@ User visits /recommendations?session_id=Y
 |---|---|---|
 | **API Framework** | FastAPI 0.115 | REST endpoints, Pydantic validation, CORS |
 | **AI Agents** | LangChain + LangChain-Groq | Agent chains, prompt templates, memory |
-| **LLM (Fast)** | `llama-3.1-8b-instant` via Groq | Intent & Entity extraction + Booking entities |
-| **LLM (Quality)** | `llama-3.3-70b-versatile` via Groq | Final response generation |
-| **Parallel Execution** | LangChain `RunnableParallel` | Intent + Entity in parallel |
+| **LLM (Fast)** | `openai/gpt-oss-20b` via Groq (`agents/llm_config.py`) | Intent & Entity extraction + Booking entities |
+| **LLM (Quality)** | `openai/gpt-oss-120b` via Groq (`agents/llm_config.py`) | Final response generation |
+| **Concurrency** | `asyncio.gather` + `ainvoke`, `asyncio.to_thread` for the DB | Intent + Entity in parallel, event loop never blocked ([benchmarks](benchmarks/README.md)) |
 | **Conversation Memory** | LangChain `MessagesPlaceholder` | Multi-turn chat history (last 5 turns) |
 | **Booking State** | In-memory `BookingContext` dataclass | Per-session booking state machine |
 | **HTTP Client** | `httpx` (async) | Calls to .NET REST API (create/cancel orders) |

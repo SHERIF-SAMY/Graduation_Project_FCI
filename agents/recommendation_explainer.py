@@ -3,7 +3,7 @@ import json
 import asyncio
 from pathlib import Path
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
+from agents.llm_config import SMART_MODEL, make_llm
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from recommendation.models import UserProfile
@@ -12,11 +12,7 @@ load_dotenv()
 
 PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
-_llm = ChatGroq(
-    model="llama-3.3-70b-versatile",
-    temperature=0.3,
-    api_key=os.environ.get("GROQ_API_KEY"),
-)
+_llm = make_llm(SMART_MODEL, temperature=0.3)
 
 _prompt_text = (PROMPTS_DIR / "recommendation_prompt.txt").read_text(encoding="utf-8")
 

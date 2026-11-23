@@ -1,18 +1,14 @@
 import os
 from pathlib import Path
 from dotenv import load_dotenv
-from langchain_groq import ChatGroq
+from agents.llm_config import FAST_MODEL, make_llm
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 
 load_dotenv()
 
-# We can reuse llama-3.1-8b-instant for fast matching and translation
-_llm = ChatGroq(
-    model="llama-3.1-8b-instant",
-    temperature=0,
-    api_key=os.environ.get("GROQ_API_KEY"),
-)
+# Fast model for matching and translation
+_llm = make_llm(FAST_MODEL)
 
 PLATFORM_FAQ_ITEMS = [
     {
@@ -109,50 +105,71 @@ def _is_arabic(text: str) -> bool:
         return False
     return any('\u0600' <= c <= '\u06FF' for c in text)
 
+_NOT_FOUND_AR = "للأسف، مش لاقي إجابة محددة لسؤالك بخصوص المنصة حالياً. تقدر تتواصل مع خدمة العملاء أو الدعم الفني لمساعدتك."
+_NOT_FOUND_EN = "Unfortunately, I couldn't find a specific answer to your question about the platform. Please feel free to contact our support team for assistance."
+
+
+def _faq_list_str() -> str:
+    return "\n".join([f"{item['id']}. {item['question']}" for item in PLATFORM_FAQ_ITEMS])
+
+
+def _pick_item(match_res: dict | None):
+    """Returns the matched FAQ item, or None if no match / confidence too low."""
+    if not match_res:
+        return None
+    matched_id = match_res.get("matched_id")
+    confidence = match_res.get("confidence", 0.0)
+    if matched_id is None or confidence < 0.6:
+        return None
+    for item in PLATFORM_FAQ_ITEMS:
+        if item["id"] == int(matched_id):
+            return item
+    return None
+
+
 def answer_platform_question(query: str, chat_history: list = None) -> str:
     """
     Matches the user query with the platform FAQ database.
     If match is successful, returns the approved answer.
     If the query is in English (detected via characters), translates the answer to English.
     """
-    faq_list_str = "\n".join([f"{item['id']}. {item['question']}" for item in PLATFORM_FAQ_ITEMS])
     try:
-        match_res = _match_chain.invoke({
-            "faq_list": faq_list_str,
-            "user_query": query
-        })
-        matched_id = match_res.get("matched_id")
-        confidence = match_res.get("confidence", 0.0)
+        match_res = _match_chain.invoke({"faq_list": _faq_list_str(), "user_query": query})
     except Exception as e:
         print(f"[PlatformKnowledge] Matching Error: {e}")
-        matched_id = None
-        confidence = 0.0
+        match_res = None
 
-    # Find the matched item by ID
-    matched_item = None
-    if matched_id is not None:
-        for item in PLATFORM_FAQ_ITEMS:
-            if item["id"] == int(matched_id):
-                matched_item = item
-                break
-
-    # If confidence is too low or not matched, use default fallback
-    if not matched_item or confidence < 0.6:
-        if _is_arabic(query):
-            return "للأسف، مش لاقي إجابة محددة لسؤالك بخصوص المنصة حالياً. تقدر تتواصل مع خدمة العملاء أو الدعم الفني لمساعدتك."
-        else:
-            return "Unfortunately, I couldn't find a specific answer to your question about the platform. Please feel free to contact our support team for assistance."
+    matched_item = _pick_item(match_res)
+    if not matched_item:
+        return _NOT_FOUND_AR if _is_arabic(query) else _NOT_FOUND_EN
 
     answer = matched_item["answer"]
-
-    # Check if the query is English (non-Arabic) to translate the answer
     if not _is_arabic(query):
         try:
-            translated_answer = _translate_chain.invoke({"text": answer})
-            return translated_answer.strip()
+            return _translate_chain.invoke({"text": answer}).strip()
         except Exception as e:
             print(f"[PlatformKnowledge] Translation Error: {e}")
-            # Fallback to Arabic answer if translation fails
-            return answer
+            return answer  # Fallback to Arabic answer if translation fails
+    return answer
 
+
+async def aanswer_platform_question(query: str, chat_history: list = None) -> str:
+    """Async version for the chat pipeline: frees the event loop while Groq answers."""
+    try:
+        match_res = await _match_chain.ainvoke({"faq_list": _faq_list_str(), "user_query": query})
+    except Exception as e:
+        print(f"[PlatformKnowledge] Matching Error: {e}")
+        match_res = None
+
+    matched_item = _pick_item(match_res)
+    if not matched_item:
+        return _NOT_FOUND_AR if _is_arabic(query) else _NOT_FOUND_EN
+
+    answer = matched_item["answer"]
+    if not _is_arabic(query):
+        try:
+            return (await _translate_chain.ainvoke({"text": answer})).strip()
+        except Exception as e:
+            print(f"[PlatformKnowledge] Translation Error: {e}")
+            return answer
     return answer

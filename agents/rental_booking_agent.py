@@ -1,5 +1,6 @@
 from memory.session_store import get_booking_context, update_booking_context, reset_booking_context
-from agents.booking_entity_extractor import extract_booking_entities
+import asyncio
+from agents.booking_entity_extractor import aextract_booking_entities
 from agents.net_api_proxy import create_rental_order, cancel_rental_order
 from sql.executor import execute_query
 import re
@@ -331,7 +332,7 @@ async def handle_booking_flow(
     # 1b. Handle the confirmation step for cancellation
     if ctx.state == "AWAITING_CANCEL_CONFIRM":
         import re
-        booking_entities = extract_booking_entities(user_query, chat_history)
+        booking_entities = await aextract_booking_entities(user_query, chat_history)
         is_confirmed = booking_entities.get("confirmed")
 
         # Maybe user just typed the order number (didn't have it before)
@@ -413,7 +414,7 @@ async def handle_booking_flow(
             }
 
     # 2. Extract booking entities from current message
-    booking_entities = extract_booking_entities(user_query, chat_history)
+    booking_entities = await aextract_booking_entities(user_query, chat_history)
 
     # 3. State Machine processing
     
@@ -548,7 +549,9 @@ async def handle_booking_flow(
     # --- AWAITING_DATES ---
     if ctx.state == "AWAITING_DATES":
         if ctx.start_date and ctx.end_date:
-            unavailable_msg = _check_product_available(ctx.product_id, ctx.start_date, ctx.end_date, lang)
+            unavailable_msg = await asyncio.to_thread(
+                _check_product_available, ctx.product_id, ctx.start_date, ctx.end_date, lang
+            )
             if unavailable_msg:
                 update_booking_context(session_id, start_date=None, end_date=None)
                 return {
@@ -617,7 +620,6 @@ async def handle_booking_flow(
                 num_days = 0
 
             # 2. Concurrent API calls for wallet and insurance
-            import asyncio
             from agents.net_api_proxy import get_wallet_balance, get_product_insurance
 
             wallet_res, insurance_res = await asyncio.gather(

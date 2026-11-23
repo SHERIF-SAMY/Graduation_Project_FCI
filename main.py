@@ -160,19 +160,20 @@ async def search_endpoint(request: SearchRequest):
         "search", category=request.category, brand=request.brand,
         location_area=request.location, price_range=request.max_price
     ))
-    start_time = time.time()
-    
+    start_time = time.perf_counter()
+
     # For /search, treat explicitly provided fields as 'entities'
     entities = request.model_dump(exclude_none=True)
     
     sql_query, sql_params = build_sql(entities)
     try:
-        raw_products = execute_query(sql_query, sql_params)
+        # sync DB driver -> run it in a thread so the event loop keeps serving other requests
+        raw_products = await asyncio.to_thread(execute_query, sql_query, sql_params)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
         
     ranked_products = rank_products(raw_products, entities)
-    latency_ms = int((time.time() - start_time) * 1000)
+    latency_ms = int((time.perf_counter() - start_time) * 1000)
     
     return format_search_response(ranked_products, latency_ms, cached=False)
 
@@ -233,7 +234,7 @@ async def get_product(product_id: int):
     asyncio.create_task(log_interaction("view_product", product_id=product_id))
     try:
         query = "SELECT * FROM Products_LLm WHERE Id = :id"
-        rows = execute_query(query, {"id": product_id})
+        rows = await asyncio.to_thread(execute_query, query, {"id": product_id})
         if not rows:
             raise HTTPException(status_code=404, detail="Product not found")
         return format_product(rows[0]).model_dump()

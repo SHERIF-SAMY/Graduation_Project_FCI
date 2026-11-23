@@ -1,13 +1,13 @@
+import asyncio
 import time
 import hashlib
-from langchain_core.runnables import RunnableParallel, RunnableLambda
 
-from agents.intent_agent import classify_intent
-from agents.entity_extractor import extract_entities
+from agents.intent_agent import aclassify_intent
+from agents.entity_extractor import aextract_entities
 from agents.sql_builder import build_sql
 from sql.executor import execute_query
 from ranking.ranker import rank_products
-from agents.response_generator import generate_response
+from agents.response_generator import agenerate_response
 from cache.query_cache import get_cached, set_cache
 from formatter.response_formatter import format_chat_response
 from memory.session_store import (
@@ -15,7 +15,7 @@ from memory.session_store import (
     save_last_products, get_last_products, clear_last_products
 )
 from agents.rental_booking_agent import handle_booking_flow
-from agents.platform_knowledge import answer_platform_question
+from agents.platform_knowledge import aanswer_platform_question
 
 # Intents that should trigger a product search in the database
 SEARCH_INTENTS = {"search", "filter", "recommend"}
@@ -23,7 +23,7 @@ BOOKING_INTENTS = {"book_initiate", "book_continue", "book_confirm", "book_cance
 
 
 async def run_chat_pipeline(query: str, session_id: str = "default", user_id: str = None, auth_token: str = None) -> dict:
-    start_time = time.time()
+    start_time = time.perf_counter()
 
     # 1. Retrieve conversation history for this session (needed for context-aware cache key)
     chat_history = get_history(session_id)
@@ -43,22 +43,21 @@ async def run_chat_pipeline(query: str, session_id: str = "default", user_id: st
         cached = get_cached(cache_key)
         if cached:
             cached["cached"] = True
-            cached["latency_ms"] = int((time.time() - start_time) * 1000)
+            cached["latency_ms"] = int((time.perf_counter() - start_time) * 1000)
             # ✅ FIX: Always add to history even for cached responses,
             # otherwise the model loses track of prior user messages.
             cached_answer = cached.get("answer", "")  # key is "answer" per format_chat_response
             add_turn(session_id, query, cached_answer, response_dict=cached.copy())
             return cached
 
-    # 4. Parallel: Intent + Context-aware Entity extraction
-    parallel_agents = RunnableParallel({
-        "intent_result": RunnableLambda(lambda q: classify_intent(q, booking_ctx.state)),
-        "entities":      RunnableLambda(lambda q: extract_entities(q, chat_history)),
-    })
-    parallel_result = parallel_agents.invoke(query)
-
-    intent   = parallel_result["intent_result"].get("intent", "search")
-    entities = parallel_result["entities"]
+    # 4. Intent + context-aware entity extraction, concurrently.
+    # ainvoke + gather: total = the slower call, and the event loop stays free for
+    # other users while Groq answers (the old RunnableParallel.invoke() blocked it).
+    intent_result, entities = await asyncio.gather(
+        aclassify_intent(query, booking_ctx.state),
+        aextract_entities(query, chat_history),
+    )
+    intent = intent_result.get("intent", "search")
 
     # 5. Routing based on intent and state
     booking_action = None
@@ -80,7 +79,7 @@ async def run_chat_pipeline(query: str, session_id: str = "default", user_id: st
             else:
                 sql_query, sql_params = build_sql(entities)
                 try:
-                    raw_products = execute_query(sql_query, sql_params)
+                    raw_products = await asyncio.to_thread(execute_query, sql_query, sql_params)
                 except Exception as e:
                     raw_products = []
                 ranked_products = rank_products(raw_products, entities)
@@ -118,22 +117,22 @@ async def run_chat_pipeline(query: str, session_id: str = "default", user_id: st
         
     elif intent == "platform_question":
         ranked_products = []
-        final_answer = answer_platform_question(query, chat_history=chat_history)
+        final_answer = await aanswer_platform_question(query, chat_history=chat_history)
     elif intent in SEARCH_INTENTS:
         sql_query, sql_params = build_sql(entities)
         try:
-            raw_products = execute_query(sql_query, sql_params)
+            raw_products = await asyncio.to_thread(execute_query, sql_query, sql_params)
         except Exception as e:
             print(f"[Orchestrator] SQL Error: {e}")
             raw_products = []
         ranked_products = rank_products(raw_products, entities)
         save_last_products(session_id, ranked_products)
-        final_answer = generate_response(query, intent, ranked_products, chat_history=chat_history)
+        final_answer = await agenerate_response(query, intent, ranked_products, chat_history=chat_history)
     else:
         ranked_products = []
-        final_answer = generate_response(query, intent, ranked_products, chat_history=chat_history)
+        final_answer = await agenerate_response(query, intent, ranked_products, chat_history=chat_history)
 
-    latency_ms = int((time.time() - start_time) * 1000)
+    latency_ms = int((time.perf_counter() - start_time) * 1000)
 
     # 6. Format into response schema
     response_dict = format_chat_response(
